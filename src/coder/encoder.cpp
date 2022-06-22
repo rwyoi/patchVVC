@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-06-22 15:33:54
+ * @LastEditTime: 2022-06-22 18:49:33
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -15,6 +15,8 @@ using namespace vvs;
  * @description: constructor for encoder, assign values to all constant variable and init the point_clouds_
  * @param {size_t} __GOF
  * @param {size_t} __patches
+ * @param {size_t} __threads
+ * @param {float} __mse_ths
  * @param {float} __resolution
  * @return {*}
  */
@@ -96,7 +98,7 @@ void coder::Encoder::AddPFrame(const std::string& __file_name) {
 		}
 
 		// two-stage parallel icp registration
-		vvs::registration::ParallelICP __alignment(30, 100.0f, 100);
+		vvs::registration::ParallelICP __alignment(this->kThreads, 100.0f, 100);
 		__alignment.SetSourcePatchesCopy(__i_patches);
 		__alignment.SetTargetPointCloudCopy(__p_frame);
 

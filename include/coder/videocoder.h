@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:13:32
- * @LastEditTime: 2022-06-22 15:33:35
+ * @LastEditTime: 2022-06-22 18:48:43
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -31,6 +31,8 @@ namespace coder {
 		 * @description: constructor for encoder, assign values to all constant variable and init the point_clouds_
 		 * @param {size_t} __GOF
 		 * @param {size_t} __patches
+		 * @param {size_t} __threads
+		 * @param {float} __mse_ths
 		 * @param {float} __resolution
 		 * @return {*}
 		 */
