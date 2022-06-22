@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 15:13:59
- * @LastEditTime: 2022-06-21 18:51:35
+ * @LastEditTime: 2022-06-21 19:33:09
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -208,7 +208,8 @@ namespace registration {
 		 * @param {float} max_tranformation_diference
 		 * @return {*}
 		 */
-		NICP(const float max_correspondence, const int, const float = 10.0f, const float = 0.01f, const float = 1e-6);
+		NICP(const float max_correspondence, const int max_iteration, const float normal_search_radius = 10.0f, const float max_mse_difference = 0.01f,
+		     const float max_transformation_difference = 1e-6);
 
 		/***
 		 * @description: do normal icp, using centroid alignment
@@ -220,31 +221,90 @@ namespace registration {
 
 	class ParallelICP {
 	  private:
-		std::vector<pcl::PointCloud<pcl::PointXYZRGB>> source_patches_;
-		pcl::PointCloud<pcl::PointXYZRGB>              target_point_cloud_;
+		std::vector<pcl::PointCloud<pcl::PointXYZRGB>> source_patches_;           // source point cloud patches
+		pcl::PointCloud<pcl::PointXYZRGB>              target_point_cloud_;       // whole target point cloud
 		const float                                    kCorrespondenceThreshold;  // max correspondence distance
 		const float                                    kMSEThreshold;             // max mse difference between two iteration
 		const float                                    kTransformationThreshold;  // max matrix difference between two iteration
 		const int                                      kIterationThreshold;       // max iteration
 		const int                                      kThreads;                  // thread number
-		std::vector<int>                               target_patch_index_;
-		std::vector<Eigen::Matrix4f>                   motion_vectors_;
-		std::vector<float>                             mean_squred_errors_;
-		std::queue<size_t>                             task_pool_;
-		std::mutex                                     task_pool_mutex_;
-		std::mutex                                     IO_mutex_;
-		bool                                           indexed = false;
-		Eigen::Matrix4f                                global_vector_;
+		std::vector<int>                               target_patch_index_;       // patch index for each target point cloud
+		std::vector<Eigen::Matrix4f>                   motion_vectors_;           // motion vectors for each patch
+		std::vector<float>                             mean_squred_errors_;       // mse for each patch
+		std::queue<size_t>                             task_pool_;                // task queue for multi-threading
+		std::mutex                                     task_pool_mutex_;          // mutex for task queue
+		std::mutex                                     IO_mutex_;                 // mutex for console log
+		bool                                           indexed = false;           // are target points indexed ?
+		Eigen::Matrix4f                                global_vector_;            // motion vector for whole target point cloud
 
 	  public:
+		/***
+		 * @description: constructor
+		 * @param {int} thread_num
+		 * @param {float} max_correspondence
+		 * @param {int} max_iteration
+		 * @param {float} max_mse_difference
+		 * @param {float} max_tranformation_diference
+		 * @return {*}
+		 */
 		ParallelICP(const int, const float, const int, const float = 0.01f, const float = 1e-6);
+
+		/***
+		 * @description: thread proccess function
+		 * @param {*}
+		 * @return {*}
+		 */
 		void ThreadProcess();
+
+		/***
+		 * @description: parallel local icp registration
+		 * @param {*}
+		 * @return {*}
+		 */
 		void ParallelAlign();
+
+		/***
+		 * @description: set source point cloud patch copy
+		 * @param {vector<PointCloud>&} patches
+		 * @return {*}
+		 */
 		void SetSourcePatchesCopy(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>&);
+
+		/***
+		 * @description: set source point cloud patches, using swap
+		 * @param {vector<PointCloud>&} patches
+		 * @return {*}
+		 */
 		void SetSourcePatchesSwap(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>&);
+
+		/***
+		 * @description: set target point cloud, using copy
+		 * @param {PointCloud&} point_cloud
+		 * @return {*}
+		 */
 		void SetTargetPointCloudCopy(pcl::PointCloud<pcl::PointXYZRGB>&);
+
+		/***
+		 * @description: set target point cloud, using swap
+		 * @param {PointCloud&} point_cloud
+		 * @return {*}
+		 */
 		void SetTargetPointCloudSwap(pcl::PointCloud<pcl::PointXYZRGB>&);
+
+		/***
+		 * @description: split targe point cloud into patches according to the nearest neighbor in source patches,
+		                 transform the split patches and record matrices and patches.
+		 * @param {vector<PointCloud>&} patches
+		 * @param {vector<Matrix4f>&} matrices
+		 * @return {*}
+		 */
 		void GetTargetPatches(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>&, std::vector<Eigen::Matrix4f>&);
+
+		/***
+		 * @description: get patches mses
+		 * @param {vector<float>&} mses
+		 * @return {*}
+		 */
 		void GetTargetMSEs(std::vector<float>&) const;
 	};
 }  // namespace registration

@@ -17,7 +17,7 @@ add_definitions(${PCL_DEFINITIONS})
 
 include_directories(${CMAKE_SOURCE_DIR}/include/)
 link_directories(${CMAKE_SOURCE_DIR}/dll/)
-set(PCO_LIBRARIES "-lturbojpeg -lzstd -lcluster -lio -lregistration -loctree -lvvc")
+set(VVS_LIBRARIES "-lsegment -lIO -lregistration -loctree")
 
 if(CMAKE_BUILD_TYPE AND(CMAKE_BUILD_TYPE STREQUAL "Debug"))
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Wall -O0")
