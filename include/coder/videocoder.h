@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:13:32
- * @LastEditTime: 2022-06-22 18:48:43
+ * @LastEditTime: 2022-06-22 20:37:44
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -60,8 +60,8 @@ namespace coder {
 		 */
 		void GetFrame(const std::string&, const size_t&);
 
-		void FittingProc();
-		void Fitting();
+		void GenerateFittingPatchProc();
+		void GenerateFittingPatch();
 		void Output(pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud);
 	};
 }  // namespace coder

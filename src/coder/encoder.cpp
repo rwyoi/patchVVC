@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-06-22 18:49:33
+ * @LastEditTime: 2022-06-22 20:38:05
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -155,7 +155,7 @@ void coder::Encoder::GetFrame(const std::string& __file_name, const size_t& __in
 	}
 }
 
-void coder::Encoder::FittingProc() {
+void coder::Encoder::GenerateFittingPatchProc() {
 	while (1) {
 		size_t index;
 		bool   flag = false;
@@ -175,7 +175,7 @@ void coder::Encoder::FittingProc() {
 	}
 }
 
-void coder::Encoder::Fitting() {
+void coder::Encoder::GenerateFittingPatch() {
 	this->task_mutex_.lock();
 	while (!this->task_queue_.empty()) {
 		this->task_queue_.pop();
@@ -188,7 +188,7 @@ void coder::Encoder::Fitting() {
 
 	std::thread task_threads[this->kThreads];
 	for (size_t i = 0; i < this->kThreads; i++) {
-		task_threads[i] = std::thread(&vvs::coder::Encoder::FittingProc, this);
+		task_threads[i] = std::thread(&vvs::coder::Encoder::GenerateFittingPatchProc, this);
 	}
 
 	for (size_t i = 0; i < this->kThreads; i++) {
