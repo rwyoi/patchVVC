@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 19:55:40
- * @LastEditTime: 2022-06-22 18:41:08
+ * @LastEditTime: 2022-06-24 11:36:49
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -23,10 +23,11 @@ namespace octree {
 		// motion vectors for each patch
 		std::vector<Eigen::Matrix4f> motion_vectors_;
 
-		std::vector<bool>                          patch_coding_mode_;
-		std::vector<float>                         patches_mses_;
-		pcl::PointCloud<pcl::PointXYZRGB>          fitting_patch_;
-		std::vector<std::vector<vvs::type::Color>> patches_colors_;
+		std::vector<bool>                             patch_coding_mode_;
+		std::vector<float>                            patches_mses_;
+		pcl::PointCloud<pcl::PointXYZRGB>             fitting_patch_;
+		std::vector<std::vector<vvs::type::ColorRGB>> patches_colors_;
+
 		// GOF
 		const size_t kGroupOfFrames;
 		// how many frames are there now
@@ -152,6 +153,13 @@ namespace octree {
 		 * @return {*}
 		 */
 		void OutputFittingPatch(pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud);
+
+		/***
+		 * @description: color interpolation for each point in fitting patch
+		 * @param {int} kInterpolationNumber
+		 * @return {*}
+		 */
+		void PatchColorFitting(const int kInterpolationNumber);
 	};
 
 }  // namespace octree

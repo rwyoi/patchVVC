@@ -528,29 +528,48 @@ namespace type {
 		}
 	};
 	// point colors
-	struct Color {
-		uint8_t r_;
-		uint8_t g_;
-		uint8_t b_;
-		Color() {
-			this->r_ = this->g_ = this->b_ = 0x00;
+	// struct Color {
+	// 	uint8_t r_;
+	// 	uint8_t g_;
+	// 	uint8_t b_;
+	// 	Color() {
+	// 		this->r_ = this->g_ = this->b_ = 0x00;
+	// 	}
+	// 	Color(pcl::PointXYZRGB& __x) {
+	// 		this->r_ = __x.r, this->g_ = __x.g, this->b_ = __x.b;
+	// 	}
+	// 	Color& operator=(const Color& __x) {
+	// 		this->r_ = __x.r_, this->g_ = __x.g_, this->b_ = __x.b_;
+	// 		return *this;
+	// 	}
+	// 	Color& operator+=(const pcl::PointXYZRGB& __x) {
+	// 		this->r_ += __x.r, this->g_ += __x.g, this->b_ += __x.b;
+	// 		return *this;
+	// 	}
+	// 	Color& operator-=(const Color& __x) {
+	// 		this->r_ -= __x.r_, this->g_ -= __x.g_, this->b_ -= __x.b_;
+	// 		return *this;
+	// 	}
+	// };
+
+	struct ColorRGB {
+		float r_;
+		float g_;
+		float b_;
+		ColorRGB() {
+			this->r_ = this->g_ = this->b_ = 0.0f;
 		}
-		Color(pcl::PointXYZRGB& __x) {
-			this->r_ = __x.r, this->g_ = __x.g, this->b_ = __x.b;
+		ColorRGB(pcl::PointXYZRGB& __point) {
+			this->r_ = __point.r, this->g_ = __point.g, this->b_ = __point.b;
 		}
-		Color& operator=(const Color& __x) {
+		ColorRGB(const ColorRGB& __x) {
 			this->r_ = __x.r_, this->g_ = __x.g_, this->b_ = __x.b_;
-			return *this;
 		}
-		Color& operator+=(const pcl::PointXYZRGB& __x) {
-			this->r_ += __x.r, this->g_ += __x.g, this->b_ += __x.b;
-			return *this;
-		}
-		Color& operator-=(const Color& __x) {
-			this->r_ -= __x.r_, this->g_ -= __x.g_, this->b_ -= __x.b_;
-			return *this;
+		void operator()(float __w, pcl::PointXYZRGB& __point) {
+			this->r_ += __w * static_cast<float>(__point.r), this->g_ += __w * static_cast<float>(__point.g), this->b_ += __w * static_cast<float>(__point.b);
 		}
 	};
+
 }  // namespace type
 }  // namespace vvs
 #endif

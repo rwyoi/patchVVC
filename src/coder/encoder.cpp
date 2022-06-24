@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-06-22 20:38:05
+ * @LastEditTime: 2022-06-24 11:02:09
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -171,6 +171,7 @@ void coder::Encoder::GenerateFittingPatchProc() {
 		}
 		else {
 			this->point_clouds_[index].GenerateFittingPatch(this->kMSEThreshold, 100.0f, 100);
+			this->point_clouds_[index].PatchColorFitting(5);
 		}
 	}
 }
@@ -197,13 +198,19 @@ void coder::Encoder::GenerateFittingPatch() {
 }
 
 void coder::Encoder::Output(pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud) {
-	for (size_t i = 0; i < this->kPatchNumber; i++) {
-		this->point_clouds_[i].OutputPSNR();
-		pcl::PointCloud<pcl::PointXYZRGB> cloud;
-		this->point_clouds_[i].OutputFittingPatch(cloud);
-		for (auto& k : cloud) {
-			__point_cloud.emplace_back(k);
-		}
-		vvs::io::SaveUniqueColorPlyFile("./FitPatch/patch_" + std::to_string(i) + ".ply", cloud);
-	}
+	// for (size_t i = 0; i < this->kPatchNumber; i++) {
+	// 	this->point_clouds_[i].OutputPSNR();
+	// 	pcl::PointCloud<pcl::PointXYZRGB> cloud;
+	// 	this->point_clouds_[i].OutputFittingPatch(cloud);
+	// 	for (auto& k : cloud) {
+	// 		__point_cloud.emplace_back(k);
+	// 	}
+	// 	vvs::io::SaveUniqueColorPlyFile("./FitPatch/patch_" + std::to_string(i) + ".ply", cloud);
+	// }
+
+	size_t index = rand() % this->kPatchNumber;
+	printf("GOF #%lu:\n", index);
+	this->point_clouds_[index].OutputPSNR();
+	pcl::PointCloud<pcl::PointXYZRGB> cloud;
+	this->point_clouds_[index].OutputFittingPatch(cloud);
 }

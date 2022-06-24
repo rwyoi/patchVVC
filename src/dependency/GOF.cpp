@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:06:07
- * @LastEditTime: 2022-06-22 18:41:14
+ * @LastEditTime: 2022-06-24 11:29:02
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -391,6 +391,16 @@ void GOF::OutputPSNR() {
 		if (!this->patch_coding_mode_[i]) {
 			float psnr = vvs::operation::PSNRGeo(this->fitting_patch_, this->frame_patches_[i]);
 			printf("GEO PSNR is %.3f\n", psnr);
+			printf("%lu %lu\n", this->fitting_patch_.size(), this->patches_colors_[i].size());
+			pcl::PointCloud<pcl::PointXYZRGB> cloud;
+			for (size_t k = 0; k < this->fitting_patch_.size(); k++) {
+				pcl::PointXYZRGB point;
+				point.x = this->fitting_patch_[k].x, point.y = this->fitting_patch_[k].y, point.z = this->fitting_patch_[k].z;
+				point.r = this->patches_colors_[i][k].r_, point.g = this->patches_colors_[i][k].g_, point.b = this->patches_colors_[i][k].b_;
+				cloud.emplace_back(point);
+			}
+			Eigen::Vector3f psnrc = vvs::operation::PSNRColor(cloud, this->frame_patches_[i]);
+			printf("Y PSNR is %.3f\nU PSNR is %.3f\nV PSNR is %.3f\n", psnrc(0), psnrc(1), psnrc(2));
 		}
 		else {
 			printf("Out of Ths\n");
@@ -406,5 +416,59 @@ void GOF::OutputPSNR() {
 void GOF::OutputFittingPatch(pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud) {
 	for (auto& i : this->fitting_patch_) {
 		__point_cloud.emplace_back(i);
+	}
+
+	for (size_t i = 0; i < this->patches_colors_.size(); i++) {
+		for (auto& k : this->patches_colors_[i]) {
+			printf("%02x%02x%02x ", static_cast<uint8_t>(std::round(k.r_)), static_cast<uint8_t>(std::round(k.g_)), static_cast<uint8_t>(std::round(k.b_)));
+		}
+		printf("\n");
+	}
+}
+
+/***
+ * @description: color interpolation for each point in fitting patch
+ * @param {int} kInterpolationNumber
+ * @return {*}
+ */
+void GOF::PatchColorFitting(const int kInterpolationNumber) {
+	// for each frame, there is a set of colors
+	this->patches_colors_.resize(this->kGroupOfFrames);
+	// each frame
+	for (size_t i = 0; i < this->frame_patches_.size(); i++) {
+		// if this frame is fitting coded
+		if (!this->patch_coding_mode_[i]) {
+			// search tree, frame patch
+			pcl::search::KdTree<pcl::PointXYZRGB> tree;
+			tree.setInputCloud(this->frame_patches_[i].makeShared());
+
+			// k-nn interpolation
+			for (size_t j = 0; j < this->fitting_patch_.size(); j++) {
+				// search k nearest neighbors
+				std::vector<int>   idx(kInterpolationNumber);
+				std::vector<float> dis(kInterpolationNumber);
+				tree.nearestKSearch(this->fitting_patch_[j], kInterpolationNumber, idx, dis);
+				// weight is  (1/dis)/sum(1/dis)
+				float sum = 0.0f;
+				for (size_t k = 0; k < kInterpolationNumber; k++) {
+					if (dis[k] <= 0.001) {
+						dis[k] = 0.001;
+					}
+					dis[k] = 1.0f / dis[k];
+					sum += dis[k];
+				}
+				vvs::type::ColorRGB new_color;
+				for (size_t k = 0; k < kInterpolationNumber; k++) {
+					new_color(static_cast<float>(dis[k] / sum), this->frame_patches_[i][idx[k]]);
+				}
+				this->patches_colors_[i].emplace_back(new_color);
+			}
+		}
+		else {
+			for (size_t j = 0; j < this->frame_patches_[i].size(); j++) {
+				vvs::type::ColorRGB new_color(this->frame_patches_[i][j]);
+				this->patches_colors_[i].emplace_back(new_color);
+			}
+		}
 	}
 }
