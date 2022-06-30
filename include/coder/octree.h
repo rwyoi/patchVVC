@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 19:55:40
- * @LastEditTime: 2022-06-24 11:36:49
+ * @LastEditTime: 2022-06-29 16:17:06
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -10,6 +10,7 @@
 #define _LIB_OCTREE_H_
 #include "coder/operation.hpp"
 #include "coder/registration.h"
+#include "zstd.h"
 #include <cfloat>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -160,8 +161,129 @@ namespace octree {
 		 * @return {*}
 		 */
 		void PatchColorFitting(const int kInterpolationNumber);
+
+		void Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::PFramePatch>& __p_frames);
+		void ColorCompensation();
 	};
 
+	class Octree3D {
+	  private:
+		// tree nodes
+		std::vector<std::vector<uint8_t>> tree_nodes_;
+		// tree colors for each frame
+		std::vector<std::vector<vvs::type::MacroBlock8>> tree_colors_;
+
+		// min resolution
+		const float kMinResolution;
+		// tree center
+		pcl::PointXYZ tree_center_;
+		// tree height
+		size_t tree_height_;
+		// tree max resolution
+		float tree_resolution_;
+
+	  public:
+		/***
+		 * @description: constructor, __res is the min resolution, default is 2.0
+		 * @param {float} __res
+		 * @return {*}
+		 */
+		Octree3D(const float __res = 2.0f);
+
+		/***
+		 * @description: add a tree node on __height layer and this node res is __res, center is __center, point indexes are __node_points
+		 * @param {const PointCloud<PointXYZRGB>&} __point_cloud
+		 * @param {const vector<vector<ColorRGB>>&} __point_colors
+		 * @param {vector<size_t>&} __node_points
+		 * @param {size_t} __height
+		 * @param {PointXYZ} __center
+		 * @param {float} __res
+		 * @return {*}
+		 */
+		bool AddTreeNode(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud, const std::vector<std::vector<vvs::type::ColorRGB>>& __point_colors, std::vector<size_t>& __node_points,
+		                 size_t __height, float __res, pcl::PointXYZ __center);
+
+		/***
+		 * @description: use __point_cloud and __point_colors to create a octree, cloud center is __center and span range is __res
+		 * @param {const PointCloud<PointXYZRGB>&} __point_cloud
+		 * @param {const vector<vector<ColorRGB>>&} __point_colors
+		 * @return {*}
+		 */
+		void SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud, const std::vector<std::vector<vvs::type::ColorRGB>>& __point_colors);
+
+		/***
+		 * @description: using zstd to compress the tree nodes to __result
+		 * @param {string&} __result
+		 * @return {*}
+		 */
+		void TreeCompression(std::string& __result);
+
+		/***
+		 * @description: color compression, Y_DCs Y_AC EOB Y_AC EOB ... U_DCs U_AC EOB U_AC EOB ... V_DCs V_AC EOB V_AC EOB ...
+		 * @param {vector<string>&} __result;
+		 * @return {size_t} number of blocks
+		 */
+		size_t ColorCompression(std::vector<std::string>& __result);
+	};
+
+	class SingleOctree3D {
+	  private:
+		// tree nodes
+		std::vector<std::vector<uint8_t>> tree_nodes_;
+		// tree colors for each frame
+		std::vector<vvs::type::MacroBlock8> tree_colors_;
+
+		// min resolution
+		const float kMinResolution;
+		// tree center
+		pcl::PointXYZ tree_center_;
+		// tree height
+		size_t tree_height_;
+		// tree max resolution
+		float tree_resolution_;
+
+	  public:
+		/***
+		 * @description: constructor, __res is the min resolution, default is 2.0
+		 * @param {float} __res
+		 * @return {*}
+		 */
+		SingleOctree3D(const float __res = 2.0f);
+
+		/***
+		 * @description: add a tree node on __height layer and this node res is __res, center is __center, point indexes are __node_points
+		 * @param {const PointCloud<PointXYZRGB>&} __point_cloud
+		 * @param {const vector<vector<ColorRGB>>&} __point_colors
+		 * @param {vector<size_t>&} __node_points
+		 * @param {size_t} __height
+		 * @param {PointXYZ} __center
+		 * @param {float} __res
+		 * @return {*}
+		 */
+		bool AddTreeNode(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud, std::vector<size_t>& __node_points, size_t __height, float __res, pcl::PointXYZ __center);
+
+		/***
+		 * @description: use __point_cloud and __point_colors to create a octree, cloud center is __center and span range is __res
+		 * @param {const PointCloud<PointXYZRGB>&} __point_cloud
+		 * @param {const vector<vector<ColorRGB>>&} __point_colors
+		 * @return {*}
+		 */
+		void SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud);
+
+		/***
+		 * @description: using zstd to compress the tree nodes to __result
+		 * @param {string&} __result
+		 * @return {*}
+		 */
+		void TreeCompression(std::string& __result);
+
+		/***
+		 * @description: color compression, Y_DCs Y_AC EOB Y_AC EOB ... U_DCs U_AC EOB U_AC EOB ... V_DCs V_AC EOB V_AC EOB ...
+		 * @param {string&} __result;
+		 * @return {size_t} number of blocks
+		 */
+		size_t ColorCompression(std::string& __result);
+	};
 }  // namespace octree
 }  // namespace vvs
 #endif

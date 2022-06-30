@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-06-24 11:02:09
+ * @LastEditTime: 2022-06-29 17:38:22
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -24,6 +24,8 @@ coder::Encoder::Encoder(const size_t __GOF, const size_t __patches, const size_t
     : kGroupOfFrames{__GOF}, kPatchNumber{__patches}, kThreads{__threads}, kMSEThreshold{__mse_ths},
       kMinResolution(__resolution), point_clouds_{std::vector<vvs::octree::GOF>(__patches, vvs::octree::GOF(__GOF))} {
 	this->frame_number_ = 0;
+	this->i_frame_patches_.resize(this->kPatchNumber);
+	this->p_frame_patches_.resize(this->kPatchNumber, std::vector<vvs::type::PFramePatch>(this->kGroupOfFrames - 1));
 }
 
 /***
@@ -155,7 +157,7 @@ void coder::Encoder::GetFrame(const std::string& __file_name, const size_t& __in
 	}
 }
 
-void coder::Encoder::GenerateFittingPatchProc() {
+void coder::Encoder::EncodingProc() {
 	while (1) {
 		size_t index;
 		bool   flag = false;
@@ -172,24 +174,25 @@ void coder::Encoder::GenerateFittingPatchProc() {
 		else {
 			this->point_clouds_[index].GenerateFittingPatch(this->kMSEThreshold, 100.0f, 100);
 			this->point_clouds_[index].PatchColorFitting(5);
+			this->point_clouds_[index].Compression(this->i_frame_patches_[index], this->p_frame_patches_[index]);
 		}
 	}
 }
 
-void coder::Encoder::GenerateFittingPatch() {
+void coder::Encoder::Encoding() {
 	this->task_mutex_.lock();
 	while (!this->task_queue_.empty()) {
 		this->task_queue_.pop();
 	}
-	this->task_mutex_.unlock();
 
 	for (size_t i = 0; i < this->kPatchNumber; i++) {
 		this->task_queue_.push(i);
 	}
+	this->task_mutex_.unlock();
 
 	std::thread task_threads[this->kThreads];
 	for (size_t i = 0; i < this->kThreads; i++) {
-		task_threads[i] = std::thread(&vvs::coder::Encoder::GenerateFittingPatchProc, this);
+		task_threads[i] = std::thread(&vvs::coder::Encoder::EncodingProc, this);
 	}
 
 	for (size_t i = 0; i < this->kThreads; i++) {
@@ -213,4 +216,141 @@ void coder::Encoder::Output(pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud) {
 	this->point_clouds_[index].OutputPSNR();
 	pcl::PointCloud<pcl::PointXYZRGB> cloud;
 	this->point_clouds_[index].OutputFittingPatch(cloud);
+}
+
+void coder::Encoder::OutputIFrame(const std::string& __i_frame_name) {
+	try {
+		std::string dir_path = __i_frame_name;
+		// if __dir_path is not ended with '/', add a '/'
+		if (dir_path.back() != '/') {
+			dir_path += '/';
+		}
+		std::string i_frame_path = dir_path + "IFrame.dat";
+		// if this dir do not exist, create it
+		if (access(dir_path.c_str(), F_OK) == -1) {
+			int flag = mkdir(dir_path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+			// cannot create, error occurs
+			if (flag != 0) {
+				std::string err = strerror(errno);
+				err             = "Cannot create dir, " + err;
+				throw err.c_str();
+			}
+		}
+		// this dir exists
+		else {
+			// if this iframe exits, remove it
+			if (access(i_frame_path.c_str(), F_OK) != -1) {
+				int flag_rm = remove(i_frame_path.c_str());
+				// cannot remove, error occurs
+				if (flag_rm != 0) {
+					std::string err = strerror(errno);
+					err             = "Cannot remove , " + err;
+					throw err.c_str();
+				}
+			}
+		}
+
+		// open this file
+		FILE* fp = fopen(i_frame_path.c_str(), "w");
+		if (fp == nullptr) {
+			std::string err = strerror(errno);
+			err             = "Cannot open IFrame data file, " + err;
+			fclose(fp);
+			throw err.c_str();
+		}
+
+		// write constant variable, GOF, Patch and MinResolution
+		fwrite(&(this->kGroupOfFrames), sizeof(size_t), 1, fp);
+		fwrite(&(this->kPatchNumber), sizeof(size_t), 1, fp);
+		fwrite(&(this->kMinResolution), sizeof(float), 1, fp);
+
+		// write each patch
+		for (size_t i = 0; i < this->kPatchNumber; i++) {
+			size_t data_size;
+			data_size = this->i_frame_patches_[i].octree_.size();
+			fwrite(&data_size, sizeof(size_t), 1, fp);
+			fwrite(this->i_frame_patches_[i].octree_.c_str(), sizeof(char), this->i_frame_patches_[i].octree_.size(), fp);
+
+			fwrite(&(this->i_frame_patches_[i].block_number_), sizeof(size_t), 1, fp);
+
+			data_size = this->i_frame_patches_[i].colors_.size();
+			fwrite(&data_size, sizeof(size_t), 1, fp);
+			fwrite(this->i_frame_patches_[i].colors_.c_str(), sizeof(char), this->i_frame_patches_[i].colors_.size(), fp);
+		}
+
+		fclose(fp);
+	}
+	catch (const char* error_message) {
+		std::cerr << "Fatal error in Encoder OutputIFrame : " << error_message << std::endl;
+		std::exit(1);
+	}
+}
+
+void coder::Encoder::OutputPFrame(const std::string& __p_frame_name) {
+	try {
+		std::string dir_path = __p_frame_name;
+		// if __dir_path is not ended with '/', add a '/'
+		if (dir_path.back() != '/') {
+			dir_path += '/';
+		}
+
+		// if this dir do not exist, create it
+		if (access(dir_path.c_str(), F_OK) == -1) {
+			int flag = mkdir(dir_path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+			// cannot create, error occurs
+			if (flag != 0) {
+				std::string err = strerror(errno);
+				err             = "Cannot create dir, " + err;
+				throw err.c_str();
+			}
+		}
+		// this dir exists
+		for (size_t i = 0; i < kGroupOfFrames - 1; i++) {
+			std::string p_frame_path = dir_path + "PFrame" + std::to_string(i) + ".dat";
+			// if this pframe exits, remove it
+			if (access(p_frame_path.c_str(), F_OK) != -1) {
+				int flag_rm = remove(p_frame_path.c_str());
+				// cannot remove, error occurs
+				if (flag_rm != 0) {
+					std::string err = strerror(errno);
+					err             = "Cannot remove , " + err;
+					throw err.c_str();
+				}
+			}
+
+			// open this file
+			FILE* fp = fopen(p_frame_path.c_str(), "w");
+			if (fp == nullptr) {
+				std::string err = strerror(errno);
+				err             = "Cannot open PFrame data file, " + err;
+				fclose(fp);
+				throw err.c_str();
+			}
+
+			// write each patch
+			for (size_t j = 0; j < this->kPatchNumber; j++) {
+				fwrite(&(this->p_frame_patches_[j][i].is_independent_), sizeof(bool), 1, fp);
+				size_t data_size;
+				if (this->p_frame_patches_[j][i].is_independent_) {
+					data_size = this->p_frame_patches_[j][i].octree_.size();
+					fwrite(&data_size, sizeof(size_t), 1, fp);
+					fwrite(this->p_frame_patches_[j][i].octree_.c_str(), sizeof(char), this->p_frame_patches_[j][i].octree_.size(), fp);
+				}
+
+				fwrite(&(this->p_frame_patches_[j][i].block_number_), sizeof(size_t), 1, fp);
+
+				data_size = this->p_frame_patches_[j][i].colors_.size();
+				fwrite(&data_size, sizeof(size_t), 1, fp);
+				fwrite(this->p_frame_patches_[j][i].colors_.c_str(), sizeof(char), this->p_frame_patches_[j][i].colors_.size(), fp);
+
+				fwrite(&(this->p_frame_patches_[j][i].motion_vector_), sizeof(Eigen::Matrix4f), 1, fp);
+			}
+
+			fclose(fp);
+		}
+	}
+	catch (const char* error_message) {
+		std::cerr << "Fatal error in Encoder OutputIFrame : " << error_message << std::endl;
+		std::exit(1);
+	}
 }

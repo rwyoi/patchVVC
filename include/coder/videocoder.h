@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:13:32
- * @LastEditTime: 2022-06-22 20:37:44
+ * @LastEditTime: 2022-06-29 16:34:25
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -12,19 +12,27 @@
 #include "coder/operation.hpp"
 #include "coder/registration.h"
 #include "coder/segment.h"
+#include <sys/io.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
 namespace vvs {
 namespace coder {
 	class Encoder {
 	  private:
-		std::vector<vvs::octree::GOF> point_clouds_;   // gof patches, i-th is the i-th patch including k frames
-		const size_t                  kGroupOfFrames;  // constant number of gof
-		const size_t                  kPatchNumber;    // constant number of patches
-		const float                   kMinResolution;  // constant number of min resolution
-		const size_t                  kThreads;
-		const float                   kMSEThreshold;
-		size_t                        frame_number_;  // count the encoded frames
-		std::queue<size_t>            task_queue_;
-		std::mutex                    task_mutex_, log_mutex_;
+		std::vector<vvs::octree::GOF>                    point_clouds_;  // gof patches, i-th is the i-th patch including k frames
+		std::vector<vvs::type::IFramePatch>              i_frame_patches_;
+		std::vector<std::vector<vvs::type::PFramePatch>> p_frame_patches_;
+		const size_t                                     kGroupOfFrames;  // constant number of gof
+		const size_t                                     kPatchNumber;    // constant number of patches
+		const float                                      kMinResolution;  // constant number of min resolution
+		const size_t                                     kThreads;
+		const float                                      kMSEThreshold;
+		size_t                                           frame_number_;  // count the encoded frames
+		std::queue<size_t>                               task_queue_;
+		std::mutex                                       task_mutex_, log_mutex_;
+
+		void EncodingProc();
 
 	  public:
 		/***
@@ -60,9 +68,11 @@ namespace coder {
 		 */
 		void GetFrame(const std::string&, const size_t&);
 
-		void GenerateFittingPatchProc();
-		void GenerateFittingPatch();
+		void Encoding();
 		void Output(pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud);
+
+		void OutputIFrame(const std::string& __i_frame_name);
+		void OutputPFrame(const std::string& __p_frame_name);
 	};
 }  // namespace coder
 }  // namespace vvs

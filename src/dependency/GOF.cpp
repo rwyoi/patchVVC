@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:06:07
- * @LastEditTime: 2022-06-24 11:29:02
+ * @LastEditTime: 2022-06-29 16:28:45
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -434,6 +434,7 @@ void GOF::OutputFittingPatch(pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud) {
 void GOF::PatchColorFitting(const int kInterpolationNumber) {
 	// for each frame, there is a set of colors
 	this->patches_colors_.resize(this->kGroupOfFrames);
+	size_t count = 0;
 	// each frame
 	for (size_t i = 0; i < this->frame_patches_.size(); i++) {
 		// if this frame is fitting coded
@@ -461,14 +462,78 @@ void GOF::PatchColorFitting(const int kInterpolationNumber) {
 				for (size_t k = 0; k < kInterpolationNumber; k++) {
 					new_color(static_cast<float>(dis[k] / sum), this->frame_patches_[i][idx[k]]);
 				}
-				this->patches_colors_[i].emplace_back(new_color);
+				this->patches_colors_[count].emplace_back(new_color);
 			}
+
+			count++;
 		}
+	}
+	this->patches_colors_.resize(count);
+}
+
+/***
+ * @description:
+ * @param {IFramePatch&} __i_frame
+ * @param {vector<PFramePatch>&} __p_frames
+ * @return {*}
+ */
+void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::PFramePatch>& __p_frames) {
+	// compress fitting patch
+	vvs::octree::Octree3D fit_tree;
+	fit_tree.SetPointCloud(this->fitting_patch_, this->patches_colors_);
+
+	// compressed colors
+	std::vector<std::string> compressed_colors;
+	fit_tree.TreeCompression(__i_frame.octree_);
+	// get block number
+	__i_frame.block_number_ = fit_tree.ColorCompression(compressed_colors);
+
+	// index of fit colors, first is i-frame's
+	auto color_index  = compressed_colors.begin();
+	__i_frame.colors_ = *color_index;
+	color_index++;
+
+	// for each p-frame
+	for (size_t i = 1; i < this->kGroupOfFrames; i++) {
+		// not independent, compensation with i-frame
+		if (!this->patch_coding_mode_[i]) {
+			// coding mode tag
+			__p_frames[i - 1].is_independent_ = false;
+			// block number equal to i-frame's
+			__p_frames[i - 1].block_number_ = __i_frame.block_number_;
+			// compressed color
+			__p_frames[i - 1].colors_ = *color_index;
+			color_index++;
+			// motion vector
+			__p_frames[i - 1].motion_vector_ = this->motion_vectors_[i];
+		}
+		// independent coded
 		else {
-			for (size_t j = 0; j < this->frame_patches_[i].size(); j++) {
-				vvs::type::ColorRGB new_color(this->frame_patches_[i][j]);
-				this->patches_colors_[i].emplace_back(new_color);
-			}
+			// coding mode tag
+			__p_frames[i - 1].is_independent_ = true;
+			// motion vector
+			__p_frames[i - 1].motion_vector_ = this->motion_vectors_[i];
+
+			// independent coded by tree
+			vvs::octree::SingleOctree3D __p_tree;
+			__p_tree.SetPointCloud(this->frame_patches_[i]);
+			// compressed tree
+			__p_tree.TreeCompression(__p_frames[i - 1].octree_);
+			// block number and compressed color
+			__p_frames[i - 1].block_number_ = __p_tree.ColorCompression(__p_frames[i - 1].colors_);
+		}
+	}
+}
+
+/***
+ * @description: do color compensation
+ * @param {*}
+ * @return {*}
+ */
+void GOF::ColorCompensation() {
+	for (size_t i = 1; i < this->patches_colors_.size(); i++) {
+		for (size_t k = 0; k < this->patches_colors_[i].size(); k++) {
+			this->patches_colors_[i][k] -= this->patches_colors_[0][k];
 		}
 	}
 }
