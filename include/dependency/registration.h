@@ -1,13 +1,14 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 15:13:59
- * @LastEditTime: 2022-06-21 19:33:09
+ * @LastEditTime: 2022-06-30 15:57:34
  * @LastEditors: ChenRP07
- * @Description:
+ * @Description: Header of point cloud registration
  */
 #ifndef _LIB_REGISTRATION_H_
 #define _LIB_REGISTRATION_H_
-#include "coder/operation.hpp"
+#include "dependency/operation.hpp"
+#include "dependency/type.hpp"
 #include <Eigen/Dense>
 #include <mutex>
 #include <pcl/features/normal_3d.h>

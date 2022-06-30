@@ -1,9 +1,9 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 14:56:35
- * @LastEditTime: 2022-06-21 15:19:57
+ * @LastEditTime: 2022-06-30 15:57:53
  * @LastEditors: ChenRP07
- * @Description:
+ * @Description: Header of Point Cloud Segmentation.
  */
 #ifndef _LIB_SEGMENT_H_
 #define _LIB_SEGMENT_H_

@@ -1,9 +1,9 @@
 /***
  * @Author: ChenRP07
- * @Date: 2022-06-30 14:33:25
- * @LastEditTime: 2022-06-30 15:47:27
+ * @Date: 2022-06-28 09:57:07
+ * @LastEditTime: 2022-06-30 14:48:03
  * @LastEditors: ChenRP07
- * @Description: Implement of octree
+ * @Description:
  */
 #include "dependency/octree.h"
 using namespace vvs::octree;
@@ -89,6 +89,34 @@ bool Octree3D::AddTreeNode(const pcl::PointCloud<pcl::PointXYZRGB>& __point_clou
 	try {
 		// if this node is empty, return 0
 		if (__node_points.empty()) {
+			// res 1 is empty, add 1 empty color
+			if (__height == this->tree_height_) {
+				// for each frame, first check the last block is full ? if full, add a new block
+				for (auto& i : this->tree_colors_) {
+					if (i.back().full()) {
+						i.emplace_back();
+					}
+					i.back().PushBack(1);
+				}
+			}
+			// res 2 is empty, add 8 empty color
+			else if (__height == (this->tree_height_ - 1)) {
+				for (auto& i : this->tree_colors_) {
+					if (i.back().full()) {
+						i.emplace_back();
+					}
+					i.back().PushBack(8);
+				}
+			}
+			// res 4 is empty, add 64 empty color
+			else if (__height == (this->tree_height_ - 2)) {
+				for (auto& i : this->tree_colors_) {
+					if (i.back().full()) {
+						i.emplace_back();
+					}
+					i.back().PushBack(64);
+				}
+			}
 			return false;
 		}
 		// leave layer, add real color
@@ -391,6 +419,34 @@ bool SingleOctree3D::AddTreeNode(const pcl::PointCloud<pcl::PointXYZRGB>& __poin
 	try {
 		// if this node is empty, return 0
 		if (__node_points.empty()) {
+			// res 1 is empty, add 1 empty color
+			if (__height == this->tree_height_) {
+				// first check the last block is full ? if full, add a new block
+				if (this->tree_colors_.back().full()) {
+					this->tree_colors_.emplace_back();
+				}
+				this->tree_colors_.back().PushBack(1);
+			}
+			// res 2 is empty, add 8 empty color
+			else if (__height == (this->tree_height_ - 1)) {
+				if (__height == this->tree_height_) {
+					// first check the last block is full ? if full, add a new block
+					if (this->tree_colors_.back().full()) {
+						this->tree_colors_.emplace_back();
+					}
+					this->tree_colors_.back().PushBack(8);
+				}
+			}
+			// res 4 is empty, add 64 empty color
+			else if (__height == (this->tree_height_ - 2)) {
+				if (__height == this->tree_height_) {
+					// first check the last block is full ? if full, add a new block
+					if (this->tree_colors_.back().full()) {
+						this->tree_colors_.emplace_back();
+					}
+					this->tree_colors_.back().PushBack(64);
+				}
+			}
 			return false;
 		}
 		// leave layer, add real color

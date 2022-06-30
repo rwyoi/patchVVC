@@ -1,16 +1,17 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 19:55:40
- * @LastEditTime: 2022-06-29 16:17:06
+ * @LastEditTime: 2022-06-30 15:57:19
  * @LastEditors: ChenRP07
- * @Description:
+ * @Description: Header of octree
  */
 
 #ifndef _LIB_OCTREE_H_
 #define _LIB_OCTREE_H_
-#include "coder/operation.hpp"
-#include "coder/registration.h"
-#include "zstd.h"
+#include "3rd/zstd.h"
+#include "dependency/operation.hpp"
+#include "dependency/registration.h"
+#include "dependency/type.hpp"
 #include <cfloat>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>

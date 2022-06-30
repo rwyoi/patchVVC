@@ -1,11 +1,11 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:06:07
- * @LastEditTime: 2022-06-29 16:28:45
+ * @LastEditTime: 2022-06-30 15:47:10
  * @LastEditors: ChenRP07
- * @Description:
+ * @Description: Implement of GroupOfFrames, including create, compression
  */
-#include "coder/octree.h"
+#include "dependency/octree.h"
 using namespace vvs::octree;
 
 /***

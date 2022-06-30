@@ -1,11 +1,11 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 17:00:23
- * @LastEditTime: 2022-06-21 18:51:36
+ * @LastEditTime: 2022-06-30 15:46:28
  * @LastEditors: ChenRP07
- * @Description:
+ * @Description: Implement of point cloud registration algorithm, including [1], [2]
  */
-#include "coder/registration.h"
+#include "dependency/registration.h"
 using namespace vvs::registration;
 
 /***
@@ -503,3 +503,6 @@ void ParallelICP::GetTargetMSEs(std::vector<float>& mses) const {
 		std::cerr << "ParallelICP failed : " << error_message << std::endl;
 	}
 }
+
+// [1] P. Besl and N. McKay, "A method for registration of 3-D shapes", IEEE Transcation on Pattern Anal Mach. IntellTransactions on Pattern Analysis and Machine Intelligence 1992
+// [2] Serafin, Jacopo and Grisetti, Giorgio "NICP: Dense normal based point cloud registration" IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) 2015

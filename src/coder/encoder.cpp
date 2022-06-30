@@ -1,9 +1,9 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-06-29 17:38:22
+ * @LastEditTime: 2022-06-30 15:56:36
  * @LastEditors: ChenRP07
- * @Description:
+ * @Description: Implement of Volumetric Video Encoder.
  */
 #include "coder/videocoder.h"
 using namespace vvs;

@@ -1,11 +1,11 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 15:03:42
- * @LastEditTime: 2022-06-21 15:12:16
+ * @LastEditTime: 2022-06-30 15:41:35
  * @LastEditors: ChenRP07
- * @Description:
+ * @Description: Implement of point cloud clustering, including [1],
  */
-#include "coder/segment.h"
+#include "dependency/segment.h"
 using namespace vvs::segment;
 
 /***
@@ -116,3 +116,5 @@ void SimplePatch::Clustering() {
 		this->point_index_[i] = index[0];
 	}
 }
+
+// [1] Guarda, Andre FR and Rodrigues, Nuno MM and Pereira, Fernando "Constant Size Point Cloud Clustering: A Compact, Non-Overlapping Solution" IEEE Transactions on Multimedia 2020

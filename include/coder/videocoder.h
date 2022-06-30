@@ -1,20 +1,21 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:13:32
- * @LastEditTime: 2022-06-29 16:34:25
+ * @LastEditTime: 2022-06-30 15:56:54
  * @LastEditors: ChenRP07
- * @Description:
+ * @Description: Header of Volumetric Video Encoder
  */
 #ifndef _LIB_VIDEOCODER_H_
 #define _LIB_VIDEOCODER_H_
-#include "coder/io.h"
-#include "coder/octree.h"
-#include "coder/operation.hpp"
-#include "coder/registration.h"
-#include "coder/segment.h"
+#include "dependency/io.h"
+#include "dependency/octree.h"
+#include "dependency/operation.hpp"
+#include "dependency/registration.h"
+#include "dependency/segment.h"
+#include "dependency/type.hpp"
 #include <sys/io.h>
-#include <unistd.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 namespace vvs {
 namespace coder {
