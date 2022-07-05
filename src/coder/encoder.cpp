@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-06-30 15:56:36
+ * @LastEditTime: 2022-07-04 20:33:52
  * @LastEditors: ChenRP07
  * @Description: Implement of Volumetric Video Encoder.
  */
@@ -174,12 +174,14 @@ void coder::Encoder::EncodingProc() {
 		else {
 			this->point_clouds_[index].GenerateFittingPatch(this->kMSEThreshold, 100.0f, 100);
 			this->point_clouds_[index].PatchColorFitting(5);
+			this->point_clouds_[index].Output(this->test_[index], 0);
 			this->point_clouds_[index].Compression(this->i_frame_patches_[index], this->p_frame_patches_[index]);
 		}
 	}
 }
 
 void coder::Encoder::Encoding() {
+	this->test_.resize(this->kPatchNumber);
 	this->task_mutex_.lock();
 	while (!this->task_queue_.empty()) {
 		this->task_queue_.pop();
@@ -211,11 +213,11 @@ void coder::Encoder::Output(pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud) {
 	// 	vvs::io::SaveUniqueColorPlyFile("./FitPatch/patch_" + std::to_string(i) + ".ply", cloud);
 	// }
 
-	size_t index = rand() % this->kPatchNumber;
-	printf("GOF #%lu:\n", index);
-	this->point_clouds_[index].OutputPSNR();
-	pcl::PointCloud<pcl::PointXYZRGB> cloud;
-	this->point_clouds_[index].OutputFittingPatch(cloud);
+	for (auto& i : this->test_) {
+		for (auto& j : i) {
+			__point_cloud.emplace_back(j);
+		}
+	}
 }
 
 void coder::Encoder::OutputIFrame(const std::string& __i_frame_name) {
@@ -266,6 +268,9 @@ void coder::Encoder::OutputIFrame(const std::string& __i_frame_name) {
 
 		// write each patch
 		for (size_t i = 0; i < this->kPatchNumber; i++) {
+			fwrite(&(this->i_frame_patches_[i].center_), sizeof(pcl::PointXYZ), 1, fp);
+			fwrite(&(this->i_frame_patches_[i].tree_height_), sizeof(size_t), 1, fp);
+
 			size_t data_size;
 			data_size = this->i_frame_patches_[i].octree_.size();
 			fwrite(&data_size, sizeof(size_t), 1, fp);
@@ -332,6 +337,9 @@ void coder::Encoder::OutputPFrame(const std::string& __p_frame_name) {
 				fwrite(&(this->p_frame_patches_[j][i].is_independent_), sizeof(bool), 1, fp);
 				size_t data_size;
 				if (this->p_frame_patches_[j][i].is_independent_) {
+					fwrite(&(this->p_frame_patches_[j][i].center_), sizeof(pcl::PointXYZ), 1, fp);
+					fwrite(&(this->p_frame_patches_[j][i].tree_height_), sizeof(size_t), 1, fp);
+
 					data_size = this->p_frame_patches_[j][i].octree_.size();
 					fwrite(&data_size, sizeof(size_t), 1, fp);
 					fwrite(this->p_frame_patches_[j][i].octree_.c_str(), sizeof(char), this->p_frame_patches_[j][i].octree_.size(), fp);
@@ -354,3 +362,4 @@ void coder::Encoder::OutputPFrame(const std::string& __p_frame_name) {
 		std::exit(1);
 	}
 }
+#pragma GCC diagnostic pop

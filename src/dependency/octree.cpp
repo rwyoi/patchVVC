@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-30 14:33:25
- * @LastEditTime: 2022-06-30 15:47:27
+ * @LastEditTime: 2022-07-04 17:02:40
  * @LastEditors: ChenRP07
  * @Description: Implement of octree
  */
@@ -148,12 +148,18 @@ bool Octree3D::AddTreeNode(const pcl::PointCloud<pcl::PointXYZRGB>& __point_clou
 }
 
 /***
- * @description: using zstd to compress the tree nodes to __result
+ * @description: using zstd to compress the tree nodes to __result, and get the tree parameters
  * @param {string&} __result
+ * @param {PointXYZ&} __center
+ * @param {size_t&} __tree_height
  * @return {*}
  */
-void Octree3D::TreeCompression(std::string& __result) {
+void Octree3D::TreeCompression(std::string& __result, pcl::PointXYZ& __center, size_t& __tree_height) {
 	try {
+		// tree parameters
+		__center      = this->tree_center_;
+		__tree_height = this->tree_height_;
+
 		// compress sorce string in __source
 		std::string __source;
 
@@ -200,12 +206,12 @@ size_t Octree3D::ColorCompression(std::vector<std::string>& __result) {
 	try {
 		// allocate space
 		__result.resize(this->tree_colors_.size());
-		// convert rgb to yuv and down sampling
-		for (auto& i : this->tree_colors_) {
-			for (auto& j : i) {
-				j.RGB2YUV820();
-			}
-		}
+		// // convert rgb to yuv and down sampling
+		// for (auto& i : this->tree_colors_) {
+		// 	for (auto& j : i) {
+		// 		j.RGB2YUV820();
+		// 	}
+		// }
 
 		// color compensation
 		for (size_t i = 1; i < this->tree_colors_.size(); i++) {
@@ -215,18 +221,18 @@ size_t Octree3D::ColorCompression(std::vector<std::string>& __result) {
 		}
 
 		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
-			std::vector<std::vector<int>> __coefficients_y(this->tree_colors_[i].size()), __coefficients_u(this->tree_colors_[i].size()), __coefficients_v(this->tree_colors_[i].size());
+			std::vector<std::vector<int>> __coefficients_r(this->tree_colors_[i].size()), __coefficients_g(this->tree_colors_[i].size()), __coefficients_b(this->tree_colors_[i].size());
 			// DCT quantization and zigzag-scan for each block.
 			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-				this->tree_colors_[i][j].YUVDCT3(__coefficients_y[j], __coefficients_u[j], __coefficients_v[j]);
+				this->tree_colors_[i][j].RGBDCT3(__coefficients_r[j], __coefficients_g[j], __coefficients_b[j]);
 			}
 
 			std::string source;
 
-			// scan the y, first DC is represented by 16-bit int
+			// scan the r, first DC is represented by 16-bit int
 			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-				source += vvs::operation::Int2CharH(__coefficients_y[j][0]);
-				source += vvs::operation::Int2CharL(__coefficients_y[j][0]);
+				source += vvs::operation::Int2CharH(__coefficients_r[j][0]);
+				source += vvs::operation::Int2CharL(__coefficients_r[j][0]);
 			}
 
 			// ACs are represented by 8-bit int
@@ -234,63 +240,140 @@ size_t Octree3D::ColorCompression(std::vector<std::string>& __result) {
 				// behind count, all ACs are 0;
 				size_t count = 0;
 				for (size_t k = 511; k >= 1; k--) {
-					if (__coefficients_y[j][k] != 0) {
+					if (__coefficients_r[j][k] != 0) {
 						count = k;
 						break;
 					}
 				}
 				for (size_t k = 1; k <= count; k++) {
-					source += vvs::operation::Int2Char(__coefficients_y[j][k]);
+					source += vvs::operation::Int2Char(__coefficients_r[j][k]);
 				}
 
 				source += static_cast<char>(-128);
 			}
 
-			// scan the u
+			// scan the g
 			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-				source += vvs::operation::Int2CharH(__coefficients_u[j][0]);
-				source += vvs::operation::Int2CharL(__coefficients_u[j][0]);
+				source += vvs::operation::Int2CharH(__coefficients_g[j][0]);
+				source += vvs::operation::Int2CharL(__coefficients_g[j][0]);
 			}
 
 			// ACs are represented by 8-bit int
 			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
 				// behind count, all ACs are 0;
 				size_t count = 0;
-				for (size_t k = 63; k >= 1; k--) {
-					if (__coefficients_y[j][k] != 0) {
+				for (size_t k = 511; k >= 1; k--) {
+					if (__coefficients_g[j][k] != 0) {
 						count = k;
 						break;
 					}
 				}
 				for (size_t k = 1; k <= count; k++) {
-					source += vvs::operation::Int2Char(__coefficients_y[j][k]);
+					source += vvs::operation::Int2Char(__coefficients_g[j][k]);
 				}
 
 				source += static_cast<char>(-128);
 			}
 
-			// scan the v
+			// scan the b
 			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-				source += vvs::operation::Int2CharH(__coefficients_v[j][0]);
-				source += vvs::operation::Int2CharL(__coefficients_v[j][0]);
+				source += vvs::operation::Int2CharH(__coefficients_b[j][0]);
+				source += vvs::operation::Int2CharL(__coefficients_b[j][0]);
 			}
 
 			// ACs are represented by 8-bit int
 			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
 				// behind count, all ACs are 0;
 				size_t count = 0;
-				for (size_t k = 63; k >= 1; k--) {
-					if (__coefficients_y[j][k] != 0) {
+				for (size_t k = 511; k >= 1; k--) {
+					if (__coefficients_b[j][k] != 0) {
 						count = k;
 						break;
 					}
 				}
 				for (size_t k = 1; k <= count; k++) {
-					source += vvs::operation::Int2Char(__coefficients_y[j][k]);
+					source += vvs::operation::Int2Char(__coefficients_b[j][k]);
 				}
 
 				source += static_cast<char>(-128);
 			}
+
+			// std::vector<std::vector<int>> __coefficients_y(this->tree_colors_[i].size()), __coefficients_u(this->tree_colors_[i].size()), __coefficients_v(this->tree_colors_[i].size());
+			// // DCT quantization and zigzag-scan for each block.
+			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
+			// 	this->tree_colors_[i][j].YUVDCT3(__coefficients_y[j], __coefficients_u[j], __coefficients_v[j]);
+			// }
+
+			// std::string source;
+
+			// // scan the y, first DC is represented by 16-bit int
+			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
+			// 	source += vvs::operation::Int2CharH(__coefficients_y[j][0]);
+			// 	source += vvs::operation::Int2CharL(__coefficients_y[j][0]);
+			// }
+
+			// // ACs are represented by 8-bit int
+			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
+			// 	// behind count, all ACs are 0;
+			// 	size_t count = 0;
+			// 	for (size_t k = 511; k >= 1; k--) {
+			// 		if (__coefficients_y[j][k] != 0) {
+			// 			count = k;
+			// 			break;
+			// 		}
+			// 	}
+			// 	for (size_t k = 1; k <= count; k++) {
+			// 		source += vvs::operation::Int2Char(__coefficients_y[j][k]);
+			// 	}
+
+			// 	source += static_cast<char>(-128);
+			// }
+
+			// // scan the u
+			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
+			// 	source += vvs::operation::Int2CharH(__coefficients_u[j][0]);
+			// 	source += vvs::operation::Int2CharL(__coefficients_u[j][0]);
+			// }
+
+			// // ACs are represented by 8-bit int
+			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
+			// 	// behind count, all ACs are 0;
+			// 	size_t count = 0;
+			// 	for (size_t k = 63; k >= 1; k--) {
+			// 		if (__coefficients_y[j][k] != 0) {
+			// 			count = k;
+			// 			break;
+			// 		}
+			// 	}
+			// 	for (size_t k = 1; k <= count; k++) {
+			// 		source += vvs::operation::Int2Char(__coefficients_y[j][k]);
+			// 	}
+
+			// 	source += static_cast<char>(-128);
+			// }
+
+			// // scan the v
+			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
+			// 	source += vvs::operation::Int2CharH(__coefficients_v[j][0]);
+			// 	source += vvs::operation::Int2CharL(__coefficients_v[j][0]);
+			// }
+
+			// // ACs are represented by 8-bit int
+			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
+			// 	// behind count, all ACs are 0;
+			// 	size_t count = 0;
+			// 	for (size_t k = 63; k >= 1; k--) {
+			// 		if (__coefficients_y[j][k] != 0) {
+			// 			count = k;
+			// 			break;
+			// 		}
+			// 	}
+			// 	for (size_t k = 1; k <= count; k++) {
+			// 		source += vvs::operation::Int2Char(__coefficients_y[j][k]);
+			// 	}
+
+			// 	source += static_cast<char>(-128);
+			// }
 
 			// compress
 			// malloc some space
@@ -450,12 +533,18 @@ bool SingleOctree3D::AddTreeNode(const pcl::PointCloud<pcl::PointXYZRGB>& __poin
 }
 
 /***
- * @description: using zstd to compress the tree nodes to __result
+ * @description: using zstd to compress the tree nodes to __result, and get the tree parameters
  * @param {string&} __result
+ * @param {PointXYZ&} __center
+ * @param {size_t&} __tree_height
  * @return {*}
  */
-void SingleOctree3D::TreeCompression(std::string& __result) {
+void SingleOctree3D::TreeCompression(std::string& __result, pcl::PointXYZ& __center, size_t& __tree_height) {
 	try {
+		// tree parameters
+		__center      = this->tree_center_;
+		__tree_height = this->tree_height_;
+
 		// compress sorce string in __source
 		std::string __source;
 
@@ -505,18 +594,18 @@ size_t SingleOctree3D::ColorCompression(std::string& __result) {
 			i.RGB2YUV820();
 		}
 
-		std::vector<std::vector<int>> __coefficients_y(this->tree_colors_.size()), __coefficients_u(this->tree_colors_.size()), __coefficients_v(this->tree_colors_.size());
+		std::vector<std::vector<int>> __coefficients_r(this->tree_colors_.size()), __coefficients_g(this->tree_colors_.size()), __coefficients_b(this->tree_colors_.size());
 		// DCT quantization and zigzag-scan for each block.
 		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
-			this->tree_colors_[i].YUVDCT3(__coefficients_y[i], __coefficients_u[i], __coefficients_v[i]);
+			this->tree_colors_[i].RGBDCT3(__coefficients_r[i], __coefficients_g[i], __coefficients_b[i]);
 		}
 
 		std::string source;
 
-		// scan the y, first DC is represented by 16-bit int
+		// scan the r, first DC is represented by 16-bit int
 		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
-			source += vvs::operation::Int2CharH(__coefficients_y[i][0]);
-			source += vvs::operation::Int2CharL(__coefficients_y[i][0]);
+			source += vvs::operation::Int2CharH(__coefficients_r[i][0]);
+			source += vvs::operation::Int2CharL(__coefficients_r[i][0]);
 		}
 
 		// ACs are represented by 8-bit int
@@ -524,59 +613,59 @@ size_t SingleOctree3D::ColorCompression(std::string& __result) {
 			// behind count, all ACs are 0;
 			size_t count = 0;
 			for (size_t k = 511; k >= 1; k--) {
-				if (__coefficients_y[i][k] != 0) {
+				if (__coefficients_r[i][k] != 0) {
 					count = k;
 					break;
 				}
 			}
 			for (size_t k = 1; k <= count; k++) {
-				source += vvs::operation::Int2Char(__coefficients_y[i][k]);
+				source += vvs::operation::Int2Char(__coefficients_r[i][k]);
 			}
 
 			source += static_cast<char>(-128);
 		}
 
-		// scan the u
+		// scan the g
 		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
-			source += vvs::operation::Int2CharH(__coefficients_u[i][0]);
-			source += vvs::operation::Int2CharL(__coefficients_u[i][0]);
+			source += vvs::operation::Int2CharH(__coefficients_g[i][0]);
+			source += vvs::operation::Int2CharL(__coefficients_g[i][0]);
 		}
 
 		// ACs are represented by 8-bit int
 		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
 			// behind count, all ACs are 0;
 			size_t count = 0;
-			for (size_t k = 63; k >= 1; k--) {
-				if (__coefficients_y[i][k] != 0) {
+			for (size_t k = 511; k >= 1; k--) {
+				if (__coefficients_g[i][k] != 0) {
 					count = k;
 					break;
 				}
 			}
 			for (size_t k = 1; k <= count; k++) {
-				source += vvs::operation::Int2Char(__coefficients_y[i][k]);
+				source += vvs::operation::Int2Char(__coefficients_g[i][k]);
 			}
 
 			source += static_cast<char>(-128);
 		}
 
-		// scan the v
+		// scan the b
 		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
-			source += vvs::operation::Int2CharH(__coefficients_v[i][0]);
-			source += vvs::operation::Int2CharL(__coefficients_v[i][0]);
+			source += vvs::operation::Int2CharH(__coefficients_b[i][0]);
+			source += vvs::operation::Int2CharL(__coefficients_b[i][0]);
 		}
 
 		// ACs are represented by 8-bit int
 		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
 			// behind count, all ACs are 0;
 			size_t count = 0;
-			for (size_t k = 63; k >= 1; k--) {
-				if (__coefficients_y[i][k] != 0) {
+			for (size_t k = 511; k >= 1; k--) {
+				if (__coefficients_b[i][k] != 0) {
 					count = k;
 					break;
 				}
 			}
 			for (size_t k = 1; k <= count; k++) {
-				source += vvs::operation::Int2Char(__coefficients_y[i][k]);
+				source += vvs::operation::Int2Char(__coefficients_b[i][k]);
 			}
 
 			source += static_cast<char>(-128);

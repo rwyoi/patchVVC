@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 19:55:40
- * @LastEditTime: 2022-06-30 15:57:19
+ * @LastEditTime: 2022-07-04 20:37:32
  * @LastEditors: ChenRP07
  * @Description: Header of octree
  */
@@ -9,6 +9,7 @@
 #ifndef _LIB_OCTREE_H_
 #define _LIB_OCTREE_H_
 #include "3rd/zstd.h"
+#include "dependency/io.h"
 #include "dependency/operation.hpp"
 #include "dependency/registration.h"
 #include "dependency/type.hpp"
@@ -165,6 +166,16 @@ namespace octree {
 
 		void Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::PFramePatch>& __p_frames);
 		void ColorCompensation();
+
+		void Output(pcl::PointCloud<pcl::PointXYZRGB>& cloud, size_t index) {
+			for (size_t i = 0; i < this->fitting_patch_.size(); i++) {
+				pcl::PointXYZRGB p;
+				p.x = this->fitting_patch_[i].x, p.y = this->fitting_patch_[i].y, p.z = this->fitting_patch_[i].z;
+				p.r = static_cast<uint8_t>(this->patches_colors_[index][i].r_), p.g = static_cast<uint8_t>(this->patches_colors_[index][i].g_),
+				p.b = static_cast<uint8_t>(this->patches_colors_[index][i].b_);
+				cloud.emplace_back(p);
+			}
+		}
 	};
 
 	class Octree3D {
@@ -213,11 +224,13 @@ namespace octree {
 		void SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud, const std::vector<std::vector<vvs::type::ColorRGB>>& __point_colors);
 
 		/***
-		 * @description: using zstd to compress the tree nodes to __result
+		 * @description: using zstd to compress the tree nodes to __result, and get the tree parameters
 		 * @param {string&} __result
+		 * @param {PointXYZ&} __center
+		 * @param {size_t&} __tree_height
 		 * @return {*}
 		 */
-		void TreeCompression(std::string& __result);
+		void TreeCompression(std::string& __result, pcl::PointXYZ& __center, size_t& __tree_height);
 
 		/***
 		 * @description: color compression, Y_DCs Y_AC EOB Y_AC EOB ... U_DCs U_AC EOB U_AC EOB ... V_DCs V_AC EOB V_AC EOB ...
@@ -272,11 +285,13 @@ namespace octree {
 		void SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud);
 
 		/***
-		 * @description: using zstd to compress the tree nodes to __result
+		 * @description: using zstd to compress the tree nodes to __result, and get the tree parameters
 		 * @param {string&} __result
+		 * @param {PointXYZ&} __center
+		 * @param {size_t&} __tree_height
 		 * @return {*}
 		 */
-		void TreeCompression(std::string& __result);
+		void TreeCompression(std::string& __result, pcl::PointXYZ& __center, size_t& __tree_height);
 
 		/***
 		 * @description: color compression, Y_DCs Y_AC EOB Y_AC EOB ... U_DCs U_AC EOB U_AC EOB ... V_DCs V_AC EOB V_AC EOB ...
@@ -284,6 +299,61 @@ namespace octree {
 		 * @return {size_t} number of blocks
 		 */
 		size_t ColorCompression(std::string& __result);
+	};
+
+	// octree for decoding
+	class DeOctree3D {
+	  private:
+		// tree nodes
+		std::vector<std::vector<uint8_t>> tree_nodes_;
+		// center for each tree nodes
+		std::vector<std::vector<pcl::PointXYZ>> tree_points_;
+
+		// minimal resolution
+		const float kMinResolution;
+
+		// center for whole tree
+		pcl::PointXYZ tree_center_;
+		// tree height
+		size_t tree_height_;
+		// maximum resolution
+		float tree_resolution_;
+
+	  public:
+		/***
+		 * @description: constructor
+		 * @param {float} __min_res
+		 * @return {*}
+		 */
+		DeOctree3D(const float __min_res);
+
+		/***
+		 * @description: set tree center
+		 * @param {const PointXYZ&} __center
+		 * @return {*}
+		 */
+		void SetCenter(const pcl::PointXYZ& __center);
+
+		/***
+		 * @description: set tree height
+		 * @param {const size_t} __height
+		 * @return {*}
+		 */
+		void SetHeight(const size_t __height);
+
+		/***
+		 * @description: decompress __tree using zstd, set tree nodes and calculate node centers
+		 * @param {string&} __tree
+		 * @return {*}
+		 */
+		void SetTree(std::string& __tree);
+
+		/***
+		 * @description: get patch geometry information
+		 * @param {PointCloud<PointXYZ>&} __patch
+		 * @return {*}
+		 */
+		void GetPatch(pcl::PointCloud<pcl::PointXYZ>& __patch);
 	};
 }  // namespace octree
 }  // namespace vvs

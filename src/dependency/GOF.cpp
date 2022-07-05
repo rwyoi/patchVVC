@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:06:07
- * @LastEditTime: 2022-06-30 15:47:10
+ * @LastEditTime: 2022-07-04 10:58:36
  * @LastEditors: ChenRP07
  * @Description: Implement of GroupOfFrames, including create, compression
  */
@@ -484,7 +484,7 @@ void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::
 
 	// compressed colors
 	std::vector<std::string> compressed_colors;
-	fit_tree.TreeCompression(__i_frame.octree_);
+	fit_tree.TreeCompression(__i_frame.octree_, __i_frame.center_, __i_frame.tree_height_);
 	// get block number
 	__i_frame.block_number_ = fit_tree.ColorCompression(compressed_colors);
 
@@ -518,7 +518,7 @@ void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::
 			vvs::octree::SingleOctree3D __p_tree;
 			__p_tree.SetPointCloud(this->frame_patches_[i]);
 			// compressed tree
-			__p_tree.TreeCompression(__p_frames[i - 1].octree_);
+			__p_tree.TreeCompression(__p_frames[i - 1].octree_, __p_frames[i - 1].center_, __p_frames[i - 1].tree_height_);
 			// block number and compressed color
 			__p_frames[i - 1].block_number_ = __p_tree.ColorCompression(__p_frames[i - 1].colors_);
 		}

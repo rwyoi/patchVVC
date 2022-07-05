@@ -59,6 +59,7 @@ namespace type {
 
 	// quantization parameter, see in [2]
 	static int QuantizationStep[22] = {16, 12, 12, 14, 17, 26, 34, 55, 64, 80, 85, 90, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100};
+	// static int QuantizationStep[22] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 	// point residual
 	struct Residual {
 		float x_;
@@ -287,16 +288,19 @@ namespace type {
 		 */
 		MacroBlock8& operator-=(const MacroBlock8& __x) {
 			try {
-				if (this->Y_.size() != 512 || this->U_.size() != 64 || this->V_.size() != 64 || __x.Y_.size() != 512 || __x.U_.size() != 64 || __x.V_.size() != 64) {
-					throw "Wrong YUV size.";
-				}
-				// sub
-				for (size_t i = 0; i < this->Y_.size(); i++) {
-					this->Y_[i] -= __x.Y_[i];
-				}
-				for (size_t i = 0; i < this->U_.size(); i++) {
-					this->U_[i] -= __x.U_[i];
-					this->V_[i] -= __x.V_[i];
+				// if (this->Y_.size() != 512 || this->U_.size() != 64 || this->V_.size() != 64 || __x.Y_.size() != 512 || __x.U_.size() != 64 || __x.V_.size() != 64) {
+				// 	throw "Wrong YUV size.";
+				// }
+				// // sub
+				// for (size_t i = 0; i < this->Y_.size(); i++) {
+				// 	this->Y_[i] -= __x.Y_[i];
+				// }
+				// for (size_t i = 0; i < this->U_.size(); i++) {
+				// 	this->U_[i] -= __x.U_[i];
+				// 	this->V_[i] -= __x.V_[i];
+				// }
+				for (size_t i = 0; i < this->RGB_.size(); i++) {
+					this->RGB_[i] -= __x.RGB_[i];
 				}
 				return *this;
 			}
@@ -377,13 +381,103 @@ namespace type {
 			}
 		}
 
-		void RGBDCT3(std::vector<float>& __coefficients) {}
+		void RGBDCT3(std::vector<int>& __coefficients_r, std::vector<int>& __coefficients_g, std::vector<int>& __coefficients_b) {
+			// reserve space, 512 for y, 64 for u v
+			__coefficients_r.clear(), __coefficients_g.clear(), __coefficients_b.clear();
+			__coefficients_r.resize(512), __coefficients_g.resize(512), __coefficients_b.resize(512);
+
+			for (size_t i = 0; i < this->RGB_.size(); i++) {
+				this->RGB_[i].r_ -= 128, this->RGB_[i].g_ -= 128, this->RGB_[i].b_ -= 128;
+			}
+			// for each y
+			for (int k1 = 0; k1 < 8; k1++) {
+				for (int k2 = 0; k2 < 8; k2++) {
+					for (int k3 = 0; k3 < 8; k3++) {
+						// sum each component
+						float sum_r = 0.0f, sum_g = 0.0f, sum_b = 0.0f;
+						for (int n1 = 0; n1 < 8; n1++) {
+							for (int n2 = 0; n2 < 8; n2++) {
+								for (int n3 = 0; n3 < 8; n3++) {
+									// turn xyz to morton index
+									size_t index = vvs::operation::XYZ2Index8(n1, n2, n3);
+									// cos transform, in [1]
+									sum_r += this->RGB_[index].r_ * cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1.0f) * k1) * cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1.0f) * k2) *
+									         cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1.0f) * k3);
+									sum_g += this->RGB_[index].g_ * cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1.0f) * k1) * cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1.0f) * k2) *
+									         cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1.0f) * k3);
+									sum_b += this->RGB_[index].b_ * cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1.0f) * k1) * cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1.0f) * k2) *
+									         cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1.0f) * k3);
+								}
+							}
+						}
+						// turn xyz to morton index
+						size_t y_index = vvs::operation::XYZ2Index8(k1, k2, k3);
+
+						// orth and zigzag in [1], quantization in [2]
+						__coefficients_r[ZigZag3D8[y_index]] =
+						    static_cast<int>(std::round((sum_r * vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) / 64.0f) / QuantizationStep[k1 + k2 + k3]));
+						__coefficients_g[ZigZag3D8[y_index]] =
+						    static_cast<int>(std::round((sum_g * vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) / 64.0f) / QuantizationStep[k1 + k2 + k3]));
+						__coefficients_b[ZigZag3D8[y_index]] =
+						    static_cast<int>(std::round((sum_b * vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) / 64.0f) / QuantizationStep[k1 + k2 + k3]));
+					}
+				}
+			}
+		}
+
+		void RGBIDCT3(std::vector<int>& __coefficients_r, std::vector<int>& __coefficients_g, std::vector<int>& __coefficients_b) {
+			this->RGB_.clear();
+			this->RGB_.resize(512);
+			for (int k1 = 0; k1 < 8; k1++) {
+				for (int k2 = 0; k2 < 8; k2++) {
+					for (int k3 = 0; k3 < 8; k3++) {
+						size_t index = vvs::operation::XYZ2Index8(k1, k2, k3);
+						__coefficients_r[index] *= QuantizationStep[k1 + k2 + k3];
+						__coefficients_g[index] *= QuantizationStep[k1 + k2 + k3];
+						__coefficients_b[index] *= QuantizationStep[k1 + k2 + k3];
+
+						// __coefficients_r[index] *= 5.0f;
+						// __coefficients_g[index] *= 5.0f;
+						// __coefficients_b[index] *= 5.0f;
+					}
+				}
+			}
+			for (int n1 = 0; n1 < 8; n1++) {
+				for (int n2 = 0; n2 < 8; n2++) {
+					for (int n3 = 0; n3 < 8; n3++) {
+						float sum_r = 0.0f, sum_g = 0.0f, sum_b = 0.0f;
+						for (int k1 = 0; k1 < 8; k1++) {
+							for (int k2 = 0; k2 < 8; k2++) {
+								for (int k3 = 0; k3 < 8; k3++) {
+									size_t index = vvs::operation::XYZ2Index8(k1, k2, k3);
+									sum_r += vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) * __coefficients_r[ZigZag3D8[index]] *
+									         std::cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1) * k1) * std::cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1) * k2) *
+									         std::cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1) * k3);
+									sum_g += vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) * __coefficients_g[ZigZag3D8[index]] *
+									         std::cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1) * k1) * std::cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1) * k2) *
+									         std::cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1) * k3);
+									sum_b += vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) * __coefficients_b[ZigZag3D8[index]] *
+									         std::cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1) * k1) * std::cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1) * k2) *
+									         std::cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1) * k3);
+								}
+							}
+						}
+						// turn xyz to morton index
+						size_t y_index = vvs::operation::XYZ2Index8(n1, n2, n3);
+
+						this->RGB_[y_index].r_ = sum_r + 128, this->RGB_[y_index].g_ = sum_g + 128, this->RGB_[y_index].b_ = sum_b + 128;
+					}
+				}
+			}
+		}
 	};
 
 	// a compressed i-frame patch
 	struct IFramePatch {
 		// fitting patch octree
-		std::string octree_;
+		std::string   octree_;
+		pcl::PointXYZ center_;
+		size_t        tree_height_;
 		// fitting colors
 		std::string colors_;
 		// block number
@@ -395,13 +489,21 @@ namespace type {
 		// coding mode tag
 		bool is_independent_;
 		// compressed octree, only be viable if is_independent_ is true
-		std::string octree_;
+		// fitting patch octree
+		std::string   octree_;
+		pcl::PointXYZ center_;
+		size_t        tree_height_;
 		// compressed colors
 		std::string colors_;
 		// block number
 		size_t block_number_;
 		// motion vector
 		Eigen::Matrix4f motion_vector_;
+
+		void clear() {
+			this->octree_.clear();
+			this->colors_.clear();
+		}
 	};
 
 }  // namespace type

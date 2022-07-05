@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:13:32
- * @LastEditTime: 2022-06-30 15:56:54
+ * @LastEditTime: 2022-07-04 20:26:35
  * @LastEditors: ChenRP07
  * @Description: Header of Volumetric Video Encoder
  */
@@ -15,6 +15,7 @@
 #include "dependency/type.hpp"
 #include <sys/io.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 namespace vvs {
@@ -32,6 +33,8 @@ namespace coder {
 		size_t                                           frame_number_;  // count the encoded frames
 		std::queue<size_t>                               task_queue_;
 		std::mutex                                       task_mutex_, log_mutex_;
+
+		std::vector<pcl::PointCloud<pcl::PointXYZRGB>> test_;
 
 		void EncodingProc();
 
@@ -75,6 +78,40 @@ namespace coder {
 		void OutputIFrame(const std::string& __i_frame_name);
 		void OutputPFrame(const std::string& __p_frame_name);
 	};
+
+	class Decoder {
+	  private:
+		std::vector<pcl::PointCloud<pcl::PointXYZ>>   fitting_patches_;
+		std::vector<std::vector<vvs::type::ColorRGB>> fitting_colors_;
+		std::vector<vvs::type::IFramePatch>           I_Frame_Patches_;
+		std::vector<vvs::type::PFramePatch>           P_Frame_Patches_;
+
+		std::vector<pcl::PointCloud<pcl::PointXYZ>>   single_patches_;
+		std::vector<std::vector<vvs::type::ColorRGB>> p_colors_;
+
+		std::queue<size_t> task_pool_;
+		std::mutex         task_mutex_;
+
+		size_t kGroupOfFrame;
+		size_t kPatchNumber;
+		float  kMinResolution;
+
+		size_t frame_number_;
+
+		const size_t kThreads;
+
+		void GetColorProc(size_t index, int __frame);
+		void GetIFrameProc();
+		void GetPFrameProc();
+
+	  public:
+		Decoder(const size_t __ths);
+		void AddIFrame(const std::string& __i_frame_name);
+		void AddPFrame(const std::string& __p_frame_name);
+		void GetIFrame(pcl::PointCloud<pcl::PointXYZRGB>& __i_frame);
+		void GetPFrame(pcl::PointCloud<pcl::PointXYZRGB>& __p_frame);
+	};
+
 }  // namespace coder
 }  // namespace vvs
 

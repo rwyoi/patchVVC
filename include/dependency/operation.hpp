@@ -687,7 +687,15 @@ namespace operation {
 		}
 
 		y >>= 8;
-		return static_cast<char>(__x);
+		return static_cast<char>(y);
+	}
+
+	inline int Char2Int(char __high, char __low) {
+		int16_t y = 0x0000;
+		y |= (__high & 0x00ff);
+		y <<= 8;
+		y |= (__low & 0x00ff);
+		return static_cast<int>(y);
 	}
 }  // namespace operation
 
