@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:13:32
- * @LastEditTime: 2022-07-04 20:26:35
+ * @LastEditTime: 2022-07-05 16:47:44
  * @LastEditors: ChenRP07
  * @Description: Header of Volumetric Video Encoder
  */
@@ -34,8 +34,15 @@ namespace coder {
 		std::queue<size_t>                               task_queue_;
 		std::mutex                                       task_mutex_, log_mutex_;
 
+		std::vector<pcl::PointCloud<pcl::PointXYZRGB>> last_patches_;
+		std::vector<Eigen::Matrix4f>                   last_motions_;
 		std::vector<pcl::PointCloud<pcl::PointXYZRGB>> test_;
 
+		/***
+		 * @description: task function for multi-threads encoding
+		 * @param {*}
+		 * @return {*}
+		 */
 		void EncodingProc();
 
 	  public:
@@ -72,10 +79,27 @@ namespace coder {
 		 */
 		void GetFrame(const std::string&, const size_t&);
 
+		/***
+		 * @description: multi-threads encoding
+		 * @param {*}
+		 * @return {*}
+		 */
 		void Encoding();
+
 		void Output(pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud);
 
+		/***
+		 * @description: write i-frame to __i_frame_name
+		 * @param {string&} __i_frame_name
+		 * @return {*}
+		 */
 		void OutputIFrame(const std::string& __i_frame_name);
+
+		/***
+		 * @description: write p-frame to __p_frame_name
+		 * @param {string&} __p_frame_name
+		 * @return {*}
+		 */
 		void OutputPFrame(const std::string& __p_frame_name);
 	};
 

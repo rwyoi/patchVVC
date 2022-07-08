@@ -8,6 +8,7 @@
 #ifndef _LIB_TYPE_HPP_
 #define _LIB_TYPE_HPP_
 #include "dependency/operation.hpp"
+#include "dependency/turbojpeg.h"
 #include <Eigen/Dense>
 #include <cfloat>
 #include <pcl/point_cloud.h>
@@ -58,8 +59,8 @@ namespace type {
 	                               4, 17, 18, 23, 19, 21, 20, 42, 24, 37, 38, 50, 41, 47, 46, 57, 22, 39, 40, 48, 43, 45, 44, 59, 49, 55, 56, 62, 58, 61, 60, 63};
 
 	// quantization parameter, see in [2]
-	static int QuantizationStep[22] = {16, 12, 12, 14, 17, 26, 34, 55, 64, 80, 85, 90, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100};
-	// static int QuantizationStep[22] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+	// static int QuantizationStep[22] = {16, 12, 12, 14, 17, 26, 34, 55, 64, 80, 85, 90, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100};
+	static int QuantizationStep[22] = {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
 	// point residual
 	struct Residual {
 		float x_;
@@ -107,6 +108,11 @@ namespace type {
 		}
 		ColorRGB(const ColorRGB& __x) {
 			this->r_ = __x.r_, this->g_ = __x.g_, this->b_ = __x.b_;
+		}
+		ColorRGB(const float __y, const float __u, const float __v) {
+			this->r_ = 1.0f * __y + 1.402 * __v;
+			this->g_ = 1.0f * __y - 0.3441 * __u - 0.7141 * __v;
+			this->b_ = 1.0f * __y + 1.772 * __u;
 		}
 		void operator()(float __w, pcl::PointXYZRGB& __point) {
 			this->r_ += __w * static_cast<float>(__point.r), this->g_ += __w * static_cast<float>(__point.g), this->b_ += __w * static_cast<float>(__point.b);
@@ -506,7 +512,88 @@ namespace type {
 		}
 	};
 
+	struct TreeNode {
+		uint8_t            subnodes_;
+		float              sig_y_, sig_u_, sig_v_;
+		std::vector<float> cof_y_, cof_u_, cof_v_;
+		size_t             weight_;
+
+		/***
+		 * @description: default constructor
+		 * @param {*}
+		 * @return {*}
+		 */
+		TreeNode() = default;
+
+		TreeNode(size_t __w) {
+			this->weight_   = __w;
+			this->subnodes_ = 0x00;
+			this->sig_y_ = this->sig_u_ = this->sig_v_ = 0.0f;
+		}
+	};
+
 }  // namespace type
+
+namespace operation {
+	inline void JPEGCompression(std::vector<vvs::type::ColorRGB>& __colors, std::string& __result) {
+		size_t image_height = static_cast<int>(std::sqrt(__colors.size()));
+		size_t image_width  = __colors.size() / image_height;
+
+		if (image_width * image_height != __colors.size()) {
+			image_width++;
+		}
+
+		unsigned char  buffer[image_height * image_width * 3];
+		unsigned char* compressed_image = nullptr;
+
+		size_t index = 0;
+		for (size_t i = 0; i < __colors.size(); i++) {
+			buffer[index]     = __colors[i].r_;
+			buffer[index + 1] = __colors[i].g_;
+			buffer[index + 2] = __colors[i].b_;
+			index += 3;
+		}
+
+		while (index < image_height * image_width * 3) {
+			buffer[index]     = __colors.back().r_;
+			buffer[index + 1] = __colors.back().g_;
+			buffer[index + 2] = __colors.back().b_;
+			index += 3;
+		}
+
+		long unsigned int jpeg_size = 0;
+
+		tjhandle jpeg_compressor = tjInitCompress();
+
+		tjCompress2(jpeg_compressor, buffer, image_width, 0, image_height, TJPF_RGB, &compressed_image, &jpeg_size, TJSAMP_420, 90, TJFLAG_FASTDCT);
+
+		for (size_t i = 0; i < jpeg_size; i++) {
+			__result += static_cast<char>(compressed_image[i]);
+		}
+	}
+
+	inline void JPEGDecompression(std::vector<vvs::type::ColorRGB>& __colors, std::string& __source) {
+		unsigned char compressed_image[__source.size()];
+		for (size_t i = 0; i < __source.size(); i++) {
+			compressed_image[i] = static_cast<unsigned char>(__source[i]);
+		}
+
+		tjhandle jpeg_decompressor = tjInitDecompress();
+		int      image_width, image_height, jpeg_subsamp;
+		tjDecompressHeader2(jpeg_decompressor, compressed_image, __source.size(), &image_width, &image_height, &jpeg_subsamp);
+
+		unsigned char buffer[image_height * image_width * 3];
+
+		tjDecompress2(jpeg_decompressor, compressed_image, __source.size(), buffer, image_width, 0, image_height, TJPF_RGB, TJFLAG_FASTDCT);
+
+		__colors.resize(image_width * image_height);
+		for (size_t i = 0; i < image_width * image_height; i++) {
+			__colors[i].r_ = static_cast<float>(buffer[i * 3]);
+			__colors[i].g_ = static_cast<float>(buffer[i * 3 + 1]);
+			__colors[i].b_ = static_cast<float>(buffer[i * 3 + 2]);
+		}
+	}
+}  // namespace operation
 }  // namespace vvs
 
 // References

@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 15:13:59
- * @LastEditTime: 2022-06-30 15:57:34
+ * @LastEditTime: 2022-07-05 17:44:54
  * @LastEditors: ChenRP07
  * @Description: Header of point cloud registration
  */
@@ -299,7 +299,7 @@ namespace registration {
 		 * @param {vector<Matrix4f>&} matrices
 		 * @return {*}
 		 */
-		void GetTargetPatches(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>&, std::vector<Eigen::Matrix4f>&);
+		void GetTargetPatches(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>&, std::vector<Eigen::Matrix4f>&, std::vector<pcl::PointCloud<pcl::PointXYZRGB>>&, std::vector<Eigen::Matrix4f>&);
 
 		/***
 		 * @description: get patches mses

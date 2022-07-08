@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 17:00:23
- * @LastEditTime: 2022-07-01 10:39:59
+ * @LastEditTime: 2022-07-05 17:47:17
  * @LastEditors: ChenRP07
  * @Description: Implement of point cloud registration algorithm, including [1], [2]
  */
@@ -412,19 +412,24 @@ void ParallelICP::ParallelAlign() {
  * @param {vector<Matrix4f>&} matrices
  * @return {*}
  */
-void ParallelICP::GetTargetPatches(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>& patches, std::vector<Eigen::Matrix4f>& matrices) {
+void ParallelICP::GetTargetPatches(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>& patches, std::vector<Eigen::Matrix4f>& matrices, std::vector<pcl::PointCloud<pcl::PointXYZRGB>>& last_patches,
+                                   std::vector<Eigen::Matrix4f>& last_motions) {
 	try {
 		// target patches are split already, output directly
 		if (indexed && (this->target_patch_index_.size() == this->target_point_cloud_.size())) {
 			patches.resize(this->source_patches_.size());
 			matrices.resize(this->motion_vectors_.size());
+			for (auto& i : last_patches) {
+				i.clear();
+			}
 			for (size_t i = 0; i < this->target_patch_index_.size(); i++) {
 				patches[this->target_patch_index_[i]].push_back(this->target_point_cloud_[i]);
+				last_patches[this->target_patch_index_[i]].emplace_back(this->target_point_cloud_[i]);
 			}
 
 			// tranform the patch and record the matrix, make the target patch align to the related source patch
 			for (size_t i = 0; i < this->motion_vectors_.size(); i++) {
-				vvs::operation::PointCloudMul(patches[i], this->motion_vectors_[i].inverse());
+				vvs::operation::PointCloudMul(patches[i], last_motions[i] * this->motion_vectors_[i].inverse());
 				matrices[i] = this->motion_vectors_[i].inverse() * this->global_vector_;
 			}
 		}
@@ -461,14 +466,17 @@ void ParallelICP::GetTargetPatches(std::vector<pcl::PointCloud<pcl::PointXYZRGB>
 			// split
 			patches.resize(this->source_patches_.size());
 			matrices.resize(this->motion_vectors_.size());
-
+			for (auto& i : last_patches) {
+				i.clear();
+			}
 			for (size_t i = 0; i < this->target_patch_index_.size(); i++) {
 				patches[this->target_patch_index_[i]].push_back(this->target_point_cloud_[i]);
+				last_patches[this->target_patch_index_[i]].emplace_back(this->target_point_cloud_[i]);
 			}
 
 			// tranform the patch and record the matrix, make the target patch align to the related source patch
 			for (size_t i = 0; i < this->motion_vectors_.size(); i++) {
-				vvs::operation::PointCloudMul(patches[i], this->motion_vectors_[i].inverse());
+				vvs::operation::PointCloudMul(patches[i], last_motions[i] * this->motion_vectors_[i].inverse());
 				matrices[i] = this->motion_vectors_[i].inverse() * this->global_vector_;
 			}
 

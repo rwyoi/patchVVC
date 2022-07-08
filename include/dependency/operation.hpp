@@ -697,6 +697,7 @@ namespace operation {
 		y |= (__low & 0x00ff);
 		return static_cast<int>(y);
 	}
+
 }  // namespace operation
 
 }  // namespace vvs

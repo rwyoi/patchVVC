@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-30 14:33:25
- * @LastEditTime: 2022-07-04 17:02:40
+ * @LastEditTime: 2022-07-05 14:57:30
  * @LastEditors: ChenRP07
  * @Description: Implement of octree
  */
@@ -206,13 +206,6 @@ size_t Octree3D::ColorCompression(std::vector<std::string>& __result) {
 	try {
 		// allocate space
 		__result.resize(this->tree_colors_.size());
-		// // convert rgb to yuv and down sampling
-		// for (auto& i : this->tree_colors_) {
-		// 	for (auto& j : i) {
-		// 		j.RGB2YUV820();
-		// 	}
-		// }
-
 		// color compensation
 		for (size_t i = 1; i < this->tree_colors_.size(); i++) {
 			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
@@ -220,7 +213,15 @@ size_t Octree3D::ColorCompression(std::vector<std::string>& __result) {
 			}
 		}
 
-		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
+		std::vector<vvs::type::ColorRGB> i_colors;
+		for (size_t i = 0; i < this->tree_colors_[0].size(); i++) {
+			for (size_t j = 0; j < this->tree_colors_[0][i].RGB_.size(); j++) {
+				i_colors.emplace_back(this->tree_colors_[0][i].RGB_[j]);
+			}
+		}
+		vvs::operation::JPEGCompression(i_colors, __result[0]);
+
+		for (size_t i = 1; i < this->tree_colors_.size(); i++) {
 			std::vector<std::vector<int>> __coefficients_r(this->tree_colors_[i].size()), __coefficients_g(this->tree_colors_[i].size()), __coefficients_b(this->tree_colors_[i].size());
 			// DCT quantization and zigzag-scan for each block.
 			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
@@ -298,83 +299,6 @@ size_t Octree3D::ColorCompression(std::vector<std::string>& __result) {
 				source += static_cast<char>(-128);
 			}
 
-			// std::vector<std::vector<int>> __coefficients_y(this->tree_colors_[i].size()), __coefficients_u(this->tree_colors_[i].size()), __coefficients_v(this->tree_colors_[i].size());
-			// // DCT quantization and zigzag-scan for each block.
-			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-			// 	this->tree_colors_[i][j].YUVDCT3(__coefficients_y[j], __coefficients_u[j], __coefficients_v[j]);
-			// }
-
-			// std::string source;
-
-			// // scan the y, first DC is represented by 16-bit int
-			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-			// 	source += vvs::operation::Int2CharH(__coefficients_y[j][0]);
-			// 	source += vvs::operation::Int2CharL(__coefficients_y[j][0]);
-			// }
-
-			// // ACs are represented by 8-bit int
-			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-			// 	// behind count, all ACs are 0;
-			// 	size_t count = 0;
-			// 	for (size_t k = 511; k >= 1; k--) {
-			// 		if (__coefficients_y[j][k] != 0) {
-			// 			count = k;
-			// 			break;
-			// 		}
-			// 	}
-			// 	for (size_t k = 1; k <= count; k++) {
-			// 		source += vvs::operation::Int2Char(__coefficients_y[j][k]);
-			// 	}
-
-			// 	source += static_cast<char>(-128);
-			// }
-
-			// // scan the u
-			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-			// 	source += vvs::operation::Int2CharH(__coefficients_u[j][0]);
-			// 	source += vvs::operation::Int2CharL(__coefficients_u[j][0]);
-			// }
-
-			// // ACs are represented by 8-bit int
-			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-			// 	// behind count, all ACs are 0;
-			// 	size_t count = 0;
-			// 	for (size_t k = 63; k >= 1; k--) {
-			// 		if (__coefficients_y[j][k] != 0) {
-			// 			count = k;
-			// 			break;
-			// 		}
-			// 	}
-			// 	for (size_t k = 1; k <= count; k++) {
-			// 		source += vvs::operation::Int2Char(__coefficients_y[j][k]);
-			// 	}
-
-			// 	source += static_cast<char>(-128);
-			// }
-
-			// // scan the v
-			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-			// 	source += vvs::operation::Int2CharH(__coefficients_v[j][0]);
-			// 	source += vvs::operation::Int2CharL(__coefficients_v[j][0]);
-			// }
-
-			// // ACs are represented by 8-bit int
-			// for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-			// 	// behind count, all ACs are 0;
-			// 	size_t count = 0;
-			// 	for (size_t k = 63; k >= 1; k--) {
-			// 		if (__coefficients_y[j][k] != 0) {
-			// 			count = k;
-			// 			break;
-			// 		}
-			// 	}
-			// 	for (size_t k = 1; k <= count; k++) {
-			// 		source += vvs::operation::Int2Char(__coefficients_y[j][k]);
-			// 	}
-
-			// 	source += static_cast<char>(-128);
-			// }
-
 			// compress
 			// malloc some space
 			const size_t kBufferSize = ZSTD_compressBound(source.size());
@@ -448,12 +372,8 @@ void SingleOctree3D::SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __po
 			__octree_points[i] = i;
 		}
 
-		// allocate space for colors
-		this->tree_colors_.resize(1, vvs::type::MacroBlock8());
-
 		// add tree node recursively
 		this->AddTreeNode(__point_cloud, __octree_points, 0, this->tree_resolution_, this->tree_center_);
-		this->tree_colors_.back().Fill();
 	}
 	catch (const char* error_message) {
 		std::cerr << "Fatal error in Octree3D SetPointCloud : " << error_message << std::endl;
@@ -485,11 +405,8 @@ bool SingleOctree3D::AddTreeNode(const pcl::PointCloud<pcl::PointXYZRGB>& __poin
 				color += temp;
 			}
 			color /= __node_points.size();
-			// check if the last block is empty
-			if (this->tree_colors_.back().full()) {
-				this->tree_colors_.emplace_back();
-			}
-			this->tree_colors_.back().PushBack(color);
+
+			this->tree_colors_.emplace_back(color);
 
 			return true;
 		}
@@ -587,106 +504,9 @@ void SingleOctree3D::TreeCompression(std::string& __result, pcl::PointXYZ& __cen
  * @param {string&} __result;
  * @return {size_t} number of blocks
  */
-size_t SingleOctree3D::ColorCompression(std::string& __result) {
+void SingleOctree3D::ColorCompression(std::string& __result) {
 	try {
-		// convert rgb to yuv and down sampling
-		for (auto& i : this->tree_colors_) {
-			i.RGB2YUV820();
-		}
-
-		std::vector<std::vector<int>> __coefficients_r(this->tree_colors_.size()), __coefficients_g(this->tree_colors_.size()), __coefficients_b(this->tree_colors_.size());
-		// DCT quantization and zigzag-scan for each block.
-		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
-			this->tree_colors_[i].RGBDCT3(__coefficients_r[i], __coefficients_g[i], __coefficients_b[i]);
-		}
-
-		std::string source;
-
-		// scan the r, first DC is represented by 16-bit int
-		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
-			source += vvs::operation::Int2CharH(__coefficients_r[i][0]);
-			source += vvs::operation::Int2CharL(__coefficients_r[i][0]);
-		}
-
-		// ACs are represented by 8-bit int
-		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
-			// behind count, all ACs are 0;
-			size_t count = 0;
-			for (size_t k = 511; k >= 1; k--) {
-				if (__coefficients_r[i][k] != 0) {
-					count = k;
-					break;
-				}
-			}
-			for (size_t k = 1; k <= count; k++) {
-				source += vvs::operation::Int2Char(__coefficients_r[i][k]);
-			}
-
-			source += static_cast<char>(-128);
-		}
-
-		// scan the g
-		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
-			source += vvs::operation::Int2CharH(__coefficients_g[i][0]);
-			source += vvs::operation::Int2CharL(__coefficients_g[i][0]);
-		}
-
-		// ACs are represented by 8-bit int
-		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
-			// behind count, all ACs are 0;
-			size_t count = 0;
-			for (size_t k = 511; k >= 1; k--) {
-				if (__coefficients_g[i][k] != 0) {
-					count = k;
-					break;
-				}
-			}
-			for (size_t k = 1; k <= count; k++) {
-				source += vvs::operation::Int2Char(__coefficients_g[i][k]);
-			}
-
-			source += static_cast<char>(-128);
-		}
-
-		// scan the b
-		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
-			source += vvs::operation::Int2CharH(__coefficients_b[i][0]);
-			source += vvs::operation::Int2CharL(__coefficients_b[i][0]);
-		}
-
-		// ACs are represented by 8-bit int
-		for (size_t i = 0; i < this->tree_colors_.size(); i++) {
-			// behind count, all ACs are 0;
-			size_t count = 0;
-			for (size_t k = 511; k >= 1; k--) {
-				if (__coefficients_b[i][k] != 0) {
-					count = k;
-					break;
-				}
-			}
-			for (size_t k = 1; k <= count; k++) {
-				source += vvs::operation::Int2Char(__coefficients_b[i][k]);
-			}
-
-			source += static_cast<char>(-128);
-		}
-
-		// compress
-		// malloc some space
-		const size_t kBufferSize = ZSTD_compressBound(source.size());
-		__result.resize(kBufferSize);
-
-		// compression
-		const size_t kCompressedSize = ZSTD_compress(const_cast<char*>(__result.c_str()), kBufferSize, source.c_str(), source.size(), ZSTD_maxCLevel());
-
-		// if error?
-		const size_t __error_code = ZSTD_isError(kCompressedSize);
-		if (__error_code != 0) {
-			throw "Wrong compressed string size.";
-		}
-		__result.resize(kCompressedSize);
-
-		return this->tree_colors_.size();
+		vvs::operation::JPEGCompression(this->tree_colors_, __result);
 	}
 	catch (const char* error_message) {
 		std::cerr << "Fatal error in Octree ColorCompression : " << error_message << std::endl;

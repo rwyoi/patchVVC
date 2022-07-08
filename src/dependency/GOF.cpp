@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:06:07
- * @LastEditTime: 2022-07-04 10:58:36
+ * @LastEditTime: 2022-07-08 11:29:45
  * @LastEditors: ChenRP07
  * @Description: Implement of GroupOfFrames, including create, compression
  */
@@ -302,7 +302,6 @@ void GOF::GenerateFittingPatch(const float kMSEThreshold, const float max_corren
 	// add point to data and get mean point cloud size, the largest cloud is recorded in max_index
 	for (size_t i = 0; i < this->kGroupOfFrames; i++) {
 		if (!this->patch_coding_mode_[i]) {
-			point_count += this->frame_patches_[i].size();
 			cloud_count++;
 			for (auto& k : this->frame_patches_[i]) {
 				data.emplace_back(k);
@@ -320,19 +319,12 @@ void GOF::GenerateFittingPatch(const float kMSEThreshold, const float max_corren
 	}
 	else {
 		// centers size is mean size of point clouds
-		size_t center_size = point_count / cloud_count;
+		size_t center_size = max_size;
 		// use the biggest cloud to be the init centers
 		for (auto& k : this->frame_patches_[max_index]) {
 			centers.emplace_back(k);
 		}
-		// down sampling to the center_size, swap random point to end and pop back
-		while (centers.size() > center_size) {
-			std::swap(centers[rand() % centers.size()], centers[centers.size() - 1]);
-			centers.points.pop_back();
-		}
 
-		// difference between two iteration
-		float last_error = 0.0f;
 		for (size_t k = 0; k < max_iteration; k++) {
 			// generate search tree
 			pcl::search::KdTree<pcl::PointXYZRGB> tree;
@@ -369,10 +361,9 @@ void GOF::GenerateFittingPatch(const float kMSEThreshold, const float max_corren
 
 			// if difference less than 0.1, end the iterations
 			error /= center_size;
-			if (std::abs(error - last_error) <= 0.1) {
+			if (std::abs(error) <= 0.1) {
 				break;
 			}
-			last_error = error;
 		}
 
 		// save the result
@@ -520,7 +511,7 @@ void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::
 			// compressed tree
 			__p_tree.TreeCompression(__p_frames[i - 1].octree_, __p_frames[i - 1].center_, __p_frames[i - 1].tree_height_);
 			// block number and compressed color
-			__p_frames[i - 1].block_number_ = __p_tree.ColorCompression(__p_frames[i - 1].colors_);
+			__p_tree.ColorCompression(__p_frames[i - 1].colors_);
 		}
 	}
 }

@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-07-04 20:33:52
+ * @LastEditTime: 2022-07-05 17:44:25
  * @LastEditors: ChenRP07
  * @Description: Implement of Volumetric Video Encoder.
  */
@@ -26,6 +26,9 @@ coder::Encoder::Encoder(const size_t __GOF, const size_t __patches, const size_t
 	this->frame_number_ = 0;
 	this->i_frame_patches_.resize(this->kPatchNumber);
 	this->p_frame_patches_.resize(this->kPatchNumber, std::vector<vvs::type::PFramePatch>(this->kGroupOfFrames - 1));
+
+	this->last_patches_.resize(this->kPatchNumber);
+	this->last_motions_.resize(this->kPatchNumber);
 }
 
 /***
@@ -62,6 +65,10 @@ void coder::Encoder::AddIFrame(const std::string& __file_name) {
 				}
 			}
 			this->point_clouds_[i].AddPatch(__i_patches[i], Eigen::Matrix4f::Identity());
+			for (auto k : __i_patches[i]) {
+				this->last_patches_[i].emplace_back(k);
+			}
+			this->last_motions_[i] = Eigen::Matrix4f::Identity();
 		}
 
 		this->frame_number_ += 1;
@@ -91,17 +98,12 @@ void coder::Encoder::AddPFrame(const std::string& __file_name) {
 		pcl::PointCloud<pcl::PointXYZRGB> __p_frame;
 		vvs::io::LoadColorPlyFile(__file_name, __p_frame);
 		std::cout << "Load P-Frame from file " << __file_name << "  ......" << std::endl;
-		std::vector<pcl::PointCloud<pcl::PointXYZRGB>> __i_patches(this->kPatchNumber);
-		Eigen::Matrix4f                                temp;
 
-		// extract patches from I-Frame
-		for (size_t i = 0; i < this->kPatchNumber; i++) {
-			this->point_clouds_[i].GetPatch(__i_patches[i], temp, 0);
-		}
+		Eigen::Matrix4f temp;
 
 		// two-stage parallel icp registration
 		vvs::registration::ParallelICP __alignment(this->kThreads, 100.0f, 100);
-		__alignment.SetSourcePatchesCopy(__i_patches);
+		__alignment.SetSourcePatchesCopy(this->last_patches_);
 		__alignment.SetTargetPointCloudCopy(__p_frame);
 
 		__alignment.ParallelAlign();
@@ -109,11 +111,12 @@ void coder::Encoder::AddPFrame(const std::string& __file_name) {
 		// get the p-frame patches
 		std::vector<pcl::PointCloud<pcl::PointXYZRGB>> __p_patches;
 		std::vector<Eigen::Matrix4f>                   __p_trans;
-		__alignment.GetTargetPatches(__p_patches, __p_trans);
+		__alignment.GetTargetPatches(__p_patches, __p_trans, this->last_patches_, this->last_motions_);
 
 		// add them to point_clouds_
 		for (size_t i = 0; i < this->kPatchNumber; i++) {
-			this->point_clouds_[i].AddPatch(__p_patches[i], __p_trans[i]);
+			this->point_clouds_[i].AddPatch(__p_patches[i], this->last_motions_[i] * __p_trans[i]);
+			this->last_motions_[i] = this->last_motions_[i] * __p_trans[i];
 		}
 
 		// frame count ++
@@ -157,6 +160,11 @@ void coder::Encoder::GetFrame(const std::string& __file_name, const size_t& __in
 	}
 }
 
+/***
+ * @description: task function for multi-threads encoding
+ * @param {*}
+ * @return {*}
+ */
 void coder::Encoder::EncodingProc() {
 	while (1) {
 		size_t index;
@@ -174,12 +182,17 @@ void coder::Encoder::EncodingProc() {
 		else {
 			this->point_clouds_[index].GenerateFittingPatch(this->kMSEThreshold, 100.0f, 100);
 			this->point_clouds_[index].PatchColorFitting(5);
-			this->point_clouds_[index].Output(this->test_[index], 0);
+			// this->point_clouds_[index].Output(this->test_[index], 0);
 			this->point_clouds_[index].Compression(this->i_frame_patches_[index], this->p_frame_patches_[index]);
 		}
 	}
 }
 
+/***
+ * @description: multi-threads encoding
+ * @param {*}
+ * @return {*}
+ */
 void coder::Encoder::Encoding() {
 	this->test_.resize(this->kPatchNumber);
 	this->task_mutex_.lock();
@@ -199,6 +212,13 @@ void coder::Encoder::Encoding() {
 
 	for (size_t i = 0; i < this->kThreads; i++) {
 		task_threads[i].join();
+	}
+
+	std::vector<pcl::PointCloud<pcl::PointXYZRGB>> a;
+	std::vector<Eigen::Matrix4f>                   aa;
+	this->point_clouds_[3].GetPatches(a, aa);
+	for (size_t i = 0; i < a.size(); i++) {
+		vvs::io::SaveColorPlyFile(std::to_string(i) + ".ply", a[i]);
 	}
 }
 
@@ -220,6 +240,11 @@ void coder::Encoder::Output(pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud) {
 	}
 }
 
+/***
+ * @description: write i-frame to __i_frame_name
+ * @param {string&} __i_frame_name
+ * @return {*}
+ */
 void coder::Encoder::OutputIFrame(const std::string& __i_frame_name) {
 	try {
 		std::string dir_path = __i_frame_name;
@@ -276,7 +301,7 @@ void coder::Encoder::OutputIFrame(const std::string& __i_frame_name) {
 			fwrite(&data_size, sizeof(size_t), 1, fp);
 			fwrite(this->i_frame_patches_[i].octree_.c_str(), sizeof(char), this->i_frame_patches_[i].octree_.size(), fp);
 
-			fwrite(&(this->i_frame_patches_[i].block_number_), sizeof(size_t), 1, fp);
+			// fwrite(&(this->i_frame_patches_[i].block_number_), sizeof(size_t), 1, fp);
 
 			data_size = this->i_frame_patches_[i].colors_.size();
 			fwrite(&data_size, sizeof(size_t), 1, fp);
@@ -291,6 +316,11 @@ void coder::Encoder::OutputIFrame(const std::string& __i_frame_name) {
 	}
 }
 
+/***
+ * @description: write p-frame to __p_frame_name
+ * @param {string&} __p_frame_name
+ * @return {*}
+ */
 void coder::Encoder::OutputPFrame(const std::string& __p_frame_name) {
 	try {
 		std::string dir_path = __p_frame_name;
@@ -345,7 +375,9 @@ void coder::Encoder::OutputPFrame(const std::string& __p_frame_name) {
 					fwrite(this->p_frame_patches_[j][i].octree_.c_str(), sizeof(char), this->p_frame_patches_[j][i].octree_.size(), fp);
 				}
 
-				fwrite(&(this->p_frame_patches_[j][i].block_number_), sizeof(size_t), 1, fp);
+				if (!this->p_frame_patches_[j][i].is_independent_) {
+					fwrite(&(this->p_frame_patches_[j][i].block_number_), sizeof(size_t), 1, fp);
+				}
 
 				data_size = this->p_frame_patches_[j][i].colors_.size();
 				fwrite(&data_size, sizeof(size_t), 1, fp);

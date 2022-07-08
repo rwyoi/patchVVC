@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 19:55:40
- * @LastEditTime: 2022-07-04 20:37:32
+ * @LastEditTime: 2022-07-05 14:57:36
  * @LastEditors: ChenRP07
  * @Description: Header of octree
  */
@@ -245,7 +245,7 @@ namespace octree {
 		// tree nodes
 		std::vector<std::vector<uint8_t>> tree_nodes_;
 		// tree colors for each frame
-		std::vector<vvs::type::MacroBlock8> tree_colors_;
+		std::vector<vvs::type::ColorRGB> tree_colors_;
 
 		// min resolution
 		const float kMinResolution;
@@ -298,7 +298,7 @@ namespace octree {
 		 * @param {string&} __result;
 		 * @return {size_t} number of blocks
 		 */
-		size_t ColorCompression(std::string& __result);
+		void ColorCompression(std::string& __result);
 	};
 
 	// octree for decoding

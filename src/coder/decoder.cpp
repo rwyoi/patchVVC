@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-07-01 16:21:06
- * @LastEditTime: 2022-07-04 19:33:06
+ * @LastEditTime: 2022-07-07 20:58:46
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -79,9 +79,6 @@ void coder::Decoder::AddIFrame(const std::string& __i_frame_name) {
 				fread(&(this->I_Frame_Patches_[i].octree_[j]), sizeof(char), 1, fp);
 			}
 
-			// read color block number
-			fread(&(this->I_Frame_Patches_[i].block_number_), sizeof(size_t), 1, fp);
-
 			// read colors
 			fread(&data_size, sizeof(size_t), 1, fp);
 			this->I_Frame_Patches_[i].colors_.resize(data_size);
@@ -151,14 +148,16 @@ void coder::Decoder::AddPFrame(const std::string& __p_frame_name) {
 				fread(&(this->P_Frame_Patches_[i].tree_height_), sizeof(size_t), 1, fp);
 
 				fread(&data_size, sizeof(size_t), 1, fp);
-				this->P_Frame_Patches_[i].colors_.resize(data_size);
+				this->P_Frame_Patches_[i].octree_.resize(data_size);
 				for (size_t j = 0; j < data_size; j++) {
-					fread(&(this->P_Frame_Patches_[i].colors_[j]), sizeof(char), 1, fp);
+					fread(&(this->P_Frame_Patches_[i].octree_[j]), sizeof(char), 1, fp);
 				}
 			}
 
-			// read color block numbers
-			fread(&(this->P_Frame_Patches_[i].block_number_), sizeof(size_t), 1, fp);
+			if (!this->P_Frame_Patches_[i].is_independent_) {
+				// read color block numbers
+				fread(&(this->P_Frame_Patches_[i].block_number_), sizeof(size_t), 1, fp);
+			}
 
 			// read colors
 			fread(&data_size, sizeof(size_t), 1, fp);
@@ -343,27 +342,10 @@ void coder::Decoder::GetColorProc(size_t index, int __frame) {
 		std::string coffecients;
 		size_t      blocks;
 		if (__frame == 0) {
-			const size_t kBufferSize = ZSTD_getFrameContentSize(this->I_Frame_Patches_[index].colors_.c_str(), this->I_Frame_Patches_[index].colors_.size());
-
-			if (kBufferSize == 0 || kBufferSize == ZSTD_CONTENTSIZE_UNKNOWN || kBufferSize == ZSTD_CONTENTSIZE_ERROR) {
-				throw "Wrong buffer size.";
-			}
-
-			coffecients.resize(kBufferSize);
-
-			// decompression
-			const size_t kDecompressedSize =
-			    ZSTD_decompress(const_cast<char*>(coffecients.c_str()), kBufferSize, this->I_Frame_Patches_[index].colors_.c_str(), this->I_Frame_Patches_[index].colors_.size());
-
-			// if error?
-			const size_t __error_code = ZSTD_isError(kDecompressedSize);
-			if (__error_code != 0) {
-				throw "Wrong decompressed string size.";
-			}
-
-			// free excess space
-			coffecients.resize(kDecompressedSize);
-			blocks = this->I_Frame_Patches_[index].block_number_;
+			vvs::operation::JPEGDecompression(this->fitting_colors_[index], this->I_Frame_Patches_[index].colors_);
+		}
+		else if (__frame == 2) {
+			vvs::operation::JPEGDecompression(this->p_colors_[index], this->P_Frame_Patches_[index].colors_);
 		}
 		else {
 			const size_t kBufferSize = ZSTD_getFrameContentSize(this->P_Frame_Patches_[index].colors_.c_str(), this->P_Frame_Patches_[index].colors_.size());
@@ -387,87 +369,76 @@ void coder::Decoder::GetColorProc(size_t index, int __frame) {
 			// free excess space
 			coffecients.resize(kDecompressedSize);
 			blocks = this->P_Frame_Patches_[index].block_number_;
-		}
 
-		std::vector<std::vector<int>> coff_r(blocks, std::vector<int>(512, 0));
-		std::vector<std::vector<int>> coff_g(blocks, std::vector<int>(512, 0));
-		std::vector<std::vector<int>> coff_b(blocks, std::vector<int>(512, 0));
+			std::vector<std::vector<int>> coff_r(blocks, std::vector<int>(512, 0));
+			std::vector<std::vector<int>> coff_g(blocks, std::vector<int>(512, 0));
+			std::vector<std::vector<int>> coff_b(blocks, std::vector<int>(512, 0));
 
-		std::vector<vvs::type::MacroBlock8> color_blocks(blocks);
+			std::vector<vvs::type::MacroBlock8> color_blocks(blocks);
 
-		size_t coff_index = 0;
-		for (size_t i = 0; i < blocks; i++) {
-			coff_r[i][0] = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
-			coff_index += 2;
-		}
-		for (size_t i = 0; i < blocks; i++) {
-			for (size_t j = 1; j < 512; j++) {
-				if (coffecients[coff_index] != static_cast<char>(-128)) {
-					coff_r[i][j] = static_cast<int>(coffecients[coff_index]);
-					coff_index++;
-				}
-				else {
-					coff_index++;
-					break;
-				}
-			}
-		}
-
-		for (size_t i = 0; i < blocks; i++) {
-			coff_g[i][0] = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
-			coff_index += 2;
-		}
-		for (size_t i = 0; i < blocks; i++) {
-			for (size_t j = 1; j < 512; j++) {
-				if (coffecients[coff_index] != static_cast<char>(-128)) {
-					coff_g[i][j] = static_cast<int>(coffecients[coff_index]);
-					coff_index++;
-				}
-				else {
-					coff_index++;
-					break;
-				}
-			}
-		}
-
-		for (size_t i = 0; i < blocks; i++) {
-			coff_b[i][0] = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
-			coff_index += 2;
-		}
-		for (size_t i = 0; i < blocks; i++) {
-			for (size_t j = 1; j < 512; j++) {
-				if (coffecients[coff_index] != static_cast<char>(-128)) {
-					coff_b[i][j] = static_cast<int>(coffecients[coff_index]);
-					coff_index++;
-				}
-				else {
-					coff_index++;
-					break;
-				}
-			}
-		}
-
-		for (size_t i = 0; i < blocks; i++) {
-			color_blocks[i].RGBIDCT3(coff_r[i], coff_g[i], coff_b[i]);
-		}
-
-		if (__frame == 0) {
+			size_t coff_index = 0;
 			for (size_t i = 0; i < blocks; i++) {
-				for (size_t j = 0; j < 512; j++) {
-					this->fitting_colors_[index].emplace_back(color_blocks[i].RGB_[j]);
+				coff_r[i][0] = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
+				coff_index += 2;
+			}
+			for (size_t i = 0; i < blocks; i++) {
+				for (size_t j = 1; j < 512; j++) {
+					if (coffecients[coff_index] != static_cast<char>(-128)) {
+						coff_r[i][j] = static_cast<int>(coffecients[coff_index]);
+						coff_index++;
+					}
+					else {
+						coff_index++;
+						break;
+					}
 				}
 			}
-		}
-		else {
+
+			for (size_t i = 0; i < blocks; i++) {
+				coff_g[i][0] = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
+				coff_index += 2;
+			}
+			for (size_t i = 0; i < blocks; i++) {
+				for (size_t j = 1; j < 512; j++) {
+					if (coffecients[coff_index] != static_cast<char>(-128)) {
+						coff_g[i][j] = static_cast<int>(coffecients[coff_index]);
+						coff_index++;
+					}
+					else {
+						coff_index++;
+						break;
+					}
+				}
+			}
+
+			for (size_t i = 0; i < blocks; i++) {
+				coff_b[i][0] = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
+				coff_index += 2;
+			}
+			for (size_t i = 0; i < blocks; i++) {
+				for (size_t j = 1; j < 512; j++) {
+					if (coffecients[coff_index] != static_cast<char>(-128)) {
+						coff_b[i][j] = static_cast<int>(coffecients[coff_index]);
+						coff_index++;
+					}
+					else {
+						coff_index++;
+						break;
+					}
+				}
+			}
+
+			for (size_t i = 0; i < blocks; i++) {
+				color_blocks[i].RGBIDCT3(coff_r[i], coff_g[i], coff_b[i]);
+			}
+
 			for (size_t i = 0; i < blocks; i++) {
 				for (size_t j = 0; j < 512; j++) {
 					this->p_colors_[index].emplace_back(color_blocks[i].RGB_[j]);
 				}
 			}
-			if (__frame == 1) {
-				for (size_t i = 0; i < this->p_colors_[index].size(); i++) {
-					this->p_colors_[index][i] += this->fitting_colors_[index][i];
-				}
+			for (size_t i = 0; i < this->p_colors_[index].size(); i++) {
+				this->p_colors_[index][i] += this->fitting_colors_[index][i];
 			}
 		}
 	}
