@@ -275,7 +275,7 @@ void GOF::GenerateFittingPatch(const float kMSEThreshold, const float max_corren
 
 	// do nicp
 	for (size_t i = 1; i < this->kGroupOfFrames; i++) {
-		vvs::registration::NICP nicp(max_correnspondence, max_iteration);
+		vvs::registration::ICP nicp(max_correnspondence, max_iteration);
 		nicp.SetSourcePointCloudCopy(this->frame_patches_[i]);
 		nicp.SetTargetPointCloudCopy(this->frame_patches_[0]);
 		bool converged = nicp.align();
@@ -471,9 +471,6 @@ void GOF::PatchColorFitting(const int kInterpolationNumber) {
 void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::PFramePatch>& __p_frames) {
 	// compress fitting patch
 	vvs::octree::Octree3D fit_tree;
-	if (out) {
-		fit_tree.out = true;
-	}
 
 	fit_tree.SetPointCloud(this->fitting_patch_, this->patches_colors_);
 
