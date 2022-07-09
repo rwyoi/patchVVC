@@ -61,90 +61,279 @@ namespace type {
 	// quantization parameter, see in [2]
 	// static int QuantizationStep[22] = {16, 12, 12, 14, 17, 26, 34, 55, 64, 80, 85, 90, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100};
 	static int QuantizationStep[22] = {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
-	// point residual
-	struct Residual {
-		float x_;
-		float y_;
-		float z_;
-		Residual(float __x, float __y, float __z) {
-			this->x_ = __x, this->y_ = __y, this->z_ = __z;
-		}
+
+	struct ColorRGB;
+	struct ColorYUV;
+	struct MacroBlock8;
+	struct TreeNode;
+
+	// a compressed i-frame patch
+	struct IFramePatch {
+		// fitting patch octree
+		std::string   octree_;
+		pcl::PointXYZ center_;
+		size_t        tree_height_;
+		// fitting colors
+		std::string colors_;
 	};
-	// point colors
-	struct Color {
-		uint8_t r_;
-		uint8_t g_;
-		uint8_t b_;
-		Color() {
-			this->r_ = this->g_ = this->b_ = 0x00;
-		}
-		Color(pcl::PointXYZRGB& __x) {
-			this->r_ = __x.r, this->g_ = __x.g, this->b_ = __x.b;
-		}
-		Color& operator=(const Color& __x) {
-			this->r_ = __x.r_, this->g_ = __x.g_, this->b_ = __x.b_;
-			return *this;
-		}
-		Color& operator+=(const pcl::PointXYZRGB& __x) {
-			this->r_ += __x.r, this->g_ += __x.g, this->b_ += __x.b;
-			return *this;
-		}
-		Color& operator-=(const Color& __x) {
-			this->r_ -= __x.r_, this->g_ -= __x.g_, this->b_ -= __x.b_;
-			return *this;
+
+	// a compressed p-frame patch
+	struct PFramePatch {
+		// coding mode tag
+		bool is_independent_;
+		// compressed octree, only be viable if is_independent_ is true
+		// fitting patch octree
+		std::string   octree_;
+		pcl::PointXYZ center_;
+		size_t        tree_height_;
+		// compressed colors
+		std::string colors_;
+		// block number
+		size_t block_number_;
+		// motion vector
+		Eigen::Matrix4f motion_vector_;
+
+		/***
+		 * @description: clear octree_ and colors_
+		 * @param {*}
+		 * @return {*}
+		 */
+		void clear() {
+			this->octree_.clear();
+			this->colors_.clear();
 		}
 	};
 
 	// RGB color
 	struct ColorRGB {
-		float r_;
-		float g_;
-		float b_;
+		float r_, g_, b_;
+
+		/***
+		 * @description: default constructor
+		 * @param {*}
+		 * @return {*}
+		 */
 		ColorRGB() {
 			this->r_ = this->g_ = this->b_ = 0.0f;
-		}
+		};
+
+		/***
+		 * @description: copy constructor from a PointXYZRGB
+		 * @param {PointXYZRGB&} __point
+		 * @return {*}
+		 */
 		ColorRGB(const pcl::PointXYZRGB& __point) {
 			this->r_ = __point.r, this->g_ = __point.g, this->b_ = __point.b;
 		}
+
+		/***
+		 * @description: copy constructor
+		 * @param {ColorRGB&} __x
+		 * @return {*}
+		 */
 		ColorRGB(const ColorRGB& __x) {
 			this->r_ = __x.r_, this->g_ = __x.g_, this->b_ = __x.b_;
 		}
-		ColorRGB(const float __y, const float __u, const float __v) {
-			this->r_ = 1.0f * __y + 1.402 * __v;
-			this->g_ = 1.0f * __y - 0.3441 * __u - 0.7141 * __v;
-			this->b_ = 1.0f * __y + 1.772 * __u;
-		}
+
+		/***
+		 * @description: constructor from yuv
+		 * @param {ColorYUV&} __x
+		 * @return {*}
+		 */
+		ColorRGB(const ColorYUV& __x);
+
+		/***
+		 * @description: interpolation by PointXYZRGB, this += __w * __point
+		 * @param {float} __w
+		 * @param {PointXYZRGB&} __point
+		 * @return {*}
+		 */
 		void operator()(float __w, pcl::PointXYZRGB& __point) {
 			this->r_ += __w * static_cast<float>(__point.r), this->g_ += __w * static_cast<float>(__point.g), this->b_ += __w * static_cast<float>(__point.b);
 		}
+
+		/***
+		 * @description: interpolation by ColorRGB, this += __x
+		 * @param {ColorRGB&} __x
+		 * @return {*}
+		 */
 		ColorRGB& operator+=(const ColorRGB& __x) {
 			this->r_ += __x.r_, this->g_ += __x.g_, this->b_ += __x.b_;
 			return *this;
 		}
-		ColorRGB& operator-=(const ColorRGB& __x) {
-			this->r_ -= __x.r_, this->g_ -= __x.g_, this->b_ -= __x.b_;
-			return *this;
-		}
+
+		/***
+		 * @description: each component /= __x
+		 * @param {*}
+		 * @return {*}
+		 */
 		ColorRGB& operator/=(const size_t __x) {
 			this->r_ /= static_cast<float>(__x), this->g_ /= static_cast<float>(__x), this->b_ /= static_cast<float>(__x);
 			return *this;
 		}
+
+		/***
+		 * @description: assignment construcotr
+		 * @param {*}
+		 * @return {*}
+		 */
 		ColorRGB& operator=(const ColorRGB& __x) {
 			this->r_ = __x.r_, this->g_ = __x.g_, this->b_ = __x.b_;
 			return *this;
 		}
 	};
 
+	// color, YUV
+	struct ColorYUV {
+		float y_, u_, v_;
+
+		ColorYUV() = default;
+
+		/***
+		 * @description: copy constructor from rgb
+		 * @param {ColorRGB&} __x
+		 * @return {*}
+		 */
+		ColorYUV(const ColorRGB& __x);
+
+		/***
+		 * @description: compensation with a TreeNode
+		 * @param {TreeNode&} __node
+		 * @return {*}
+		 */
+		ColorYUV& operator-=(const TreeNode& __node);
+
+		/***
+		 * @description: compensation with another yuv
+		 * @param {ColorYUV&} __x
+		 * @return {*}
+		 */
+		ColorYUV& operator-=(const ColorYUV& __x) {
+			this->y_ -= __x.y_;
+			this->u_ -= __x.u_;
+			this->v_ -= __x.v_;
+			return *this;
+		}
+
+		/***
+		 * @description: inverse compensation with a TreeNode
+		 * @param {TreeNode&} __node
+		 * @return {*}
+		 */
+		ColorYUV& operator+=(const TreeNode& __node);
+
+		/***
+		 * @description: inverse compensation with another yuv
+		 * @param {*}
+		 * @return {*}
+		 */
+		ColorYUV& operator+=(const ColorYUV& __x) {
+			this->y_ += __x.y_;
+			this->u_ += __x.u_;
+			this->v_ += __x.v_;
+			return *this;
+		}
+	};
+
+	// node structure for octree
+	struct TreeNode {
+		// subnode occupation
+		uint8_t subnodes_;
+		// signal of YUV
+		float sig_y_, sig_u_, sig_v_;
+		// coffecients of YUV
+		std::vector<float> cof_y_, cof_u_, cof_v_;
+		// weight, how many points in this node
+		size_t weight_;
+
+		/***
+		 * @description: default constructor
+		 * @param {*}
+		 * @return {*}
+		 */
+		TreeNode() {
+			this->weight_   = 0;
+			this->subnodes_ = 0x00;
+			this->sig_y_ = this->sig_u_ = this->sig_v_ = 0.0f;
+		}
+
+		/***
+		 * @description: constructor, init the node weight
+		 * @param {size_t} __w
+		 * @return {*}
+		 */
+		TreeNode(size_t __w) {
+			this->weight_   = __w;
+			this->subnodes_ = 0x00;
+			this->sig_y_ = this->sig_u_ = this->sig_v_ = 0.0f;
+		}
+
+		/***
+		 * @description: constructor, init the octree node occupation
+		 * @param {uint8_t} __v
+		 * @return {*}
+		 */
+		TreeNode(uint8_t __v) {
+			this->subnodes_ = __v;
+			this->weight_   = 0;
+			this->sig_y_ = this->sig_u_ = this->sig_v_ = 0.0f;
+		}
+
+		/***
+		 * @description: duplicate constructor
+		 * @param {const TreeNode&} __x
+		 * @return {*}
+		 */
+		TreeNode(const TreeNode& __x) {
+			this->subnodes_ = __x.subnodes_, this->weight_ = __x.weight_;
+			this->sig_y_ = __x.sig_y_, this->sig_u_ = __x.sig_u_, this->sig_v_ = __x.sig_v_;
+			this->cof_y_ = __x.cof_y_, this->cof_u_ = __x.cof_u_, this->cof_v_ = __x.cof_v_;
+		}
+
+		/***
+		 * @description: assign constructor
+		 * @param {const TreeNode&} __x
+		 * @return {*}
+		 */
+		TreeNode& operator=(const TreeNode& __x) {
+			this->subnodes_ = __x.subnodes_, this->weight_ = __x.weight_;
+			this->sig_y_ = __x.sig_y_, this->sig_u_ = __x.sig_u_, this->sig_v_ = __x.sig_v_;
+			this->cof_y_ = __x.cof_y_, this->cof_u_ = __x.cof_u_, this->cof_v_ = __x.cof_v_;
+			return *this;
+		}
+
+		/***
+		 * @description: set subnodes_
+		 * @param {uint8_t} __x
+		 * @return {*}
+		 */
+		inline void SetNode(uint8_t __x) {
+			this->subnodes_ = __x;
+		}
+
+		/***
+		 * @description: set weight_
+		 * @param {size_t} __w
+		 * @return {*}
+		 */
+		inline void SetWeight(size_t __w) {
+			this->weight_ = __w;
+		}
+
+		/***
+		 * @description: set yuv signal by a RGB
+		 * @param {const ColorRGB&} __color
+		 * @return {*}
+		 */
+		inline void SetSignal(const vvs::type::ColorRGB& __color);
+	};
+
 	// A 8*8*8 block cube
 	struct MacroBlock8 {
-		// RGB colors
-		std::vector<ColorRGB> RGB_;
-		// 1 is real point and 0 is virtual point
-		std::vector<bool> color_index_;
-		// YUV820
-		std::vector<float> Y_;
-		std::vector<float> U_;
-		std::vector<float> V_;
+		// YUV
+		std::vector<ColorYUV> points_;
+
+		MacroBlock8() = default;
 
 		/***
 		 * @description: Output block size
@@ -152,16 +341,7 @@ namespace type {
 		 * @return {*}
 		 */
 		size_t size() const {
-			try {
-				if (RGB_.size() != color_index_.size()) {
-					throw "MacroBlock8 is broken.";
-				}
-				return RGB_.size();
-			}
-			catch (const char* error_message) {
-				std::cerr << "Fatal error : " << error_message << std::endl;
-				std::exit(1);
-			}
+			return this->points_.size();
 		}
 
 		/***
@@ -187,134 +367,14 @@ namespace type {
 		 * @param {ColorRGB&} __color
 		 * @return {*}
 		 */
-		void PushBack(const ColorRGB& __color) {
-			try {
-				if (this->size() >= 512) {
-					throw "Out of block range.";
-				}
-				this->RGB_.emplace_back(__color);
-				this->color_index_.emplace_back(true);
-			}
-			catch (const char* error_message) {
-				std::cerr << "Fatal error : " << error_message << std::endl;
-				std::exit(1);
-			}
-		}
+		inline void PushBack(const ColorYUV& __color);
 
 		/***
-		 * @description: Add __size virtual empty points to block
-		 * @param {size_t} __size
-		 * @return {*}
-		 */
-		void PushBack(const size_t __size) {
-			try {
-				if (this->size() >= 512) {
-					throw "Out of block range.";
-				}
-				for (size_t i = 0; i < __size; i++) {
-					this->RGB_.emplace_back();
-					this->color_index_.emplace_back(false);
-				}
-			}
-			catch (const char* error_message) {
-				std::cerr << "Fatal error : " << error_message << std::endl;
-				std::exit(1);
-			}
-		}
-
-		void Fill() {
-			while (this->size() < 512) {
-				this->PushBack(1);
-			}
-		}
-		/***
-		 * @description: i-frame filling, using mean real color to fill empty points
+		 * @description: using 000 fill block to 512
 		 * @param {*}
 		 * @return {*}
 		 */
-		void IFrameFill() {
-			ColorRGB mean_color;
-			size_t   count = 0;
-			for (size_t i = 0; i < this->size(); i++) {
-				if (this->color_index_[i]) {
-					mean_color += this->RGB_[i];
-					count++;
-				}
-			}
-			mean_color.r_ /= count, mean_color.g_ /= count, mean_color.b_ /= count;
-			for (size_t i = 0; i < this->size(); i++) {
-				if (!this->color_index_[i]) {
-					this->RGB_[i] = mean_color;
-				}
-			}
-		}
-
-		/***
-		 * @description: color sampling, all Y reserved, each 8 nodes share a U and a V.
-		 * @param {*}
-		 * @return {*}
-		 */
-		void RGB2YUV820() {
-			// for each point
-			for (size_t i = 0; i < 64; i++) {
-				// average rgb for each real point
-				float  r = 0.0f, g = 0.0f, b = 0.0f;
-				size_t count = 0;
-				// for each 8 point
-				for (size_t j = 0; j < 8; j++) {
-					// y 0.0 for vitural point
-					float y = 0.0f;
-					// real point
-					if (this->color_index_[i * 8 + j]) {
-						// convert rgb to y
-						y = 0.299f * this->RGB_[i * 8 + j].r_ + 0.587f * this->RGB_[i * 8 + j].g_ + 0.114f * this->RGB_[i * 8 + j].b_;
-						r += this->RGB_[i * 8 + j].r_, g += this->RGB_[i * 8 + j].g_, b += this->RGB_[i * 8 + j].b_;
-						count++;
-					}
-					// add y
-					this->Y_.emplace_back(y);
-				}
-				float u = 0.0f, v = 0.0f;
-				// at least a real point
-				if (count != 0) {
-					// mean r g b, conver to u and v
-					r /= static_cast<float>(count), g /= static_cast<float>(count), b /= static_cast<float>(count);
-					u = -0.168736f * r - 0.331264f * g + 0.5f * b + 128;
-					v = 0.5f * r - 0.418688f * g - 0.081312f * b + 128;
-				}
-				// add u and v
-				this->U_.emplace_back(u), this->V_.emplace_back(v);
-			}
-		}
-
-		/***
-		 * @description: color compensation for YUV
-		 * @param {const MacroBlock8&} __x
-		 * @return {*}
-		 */
-		MacroBlock8& operator-=(const MacroBlock8& __x) {
-			try {
-				// if (this->Y_.size() != 512 || this->U_.size() != 64 || this->V_.size() != 64 || __x.Y_.size() != 512 || __x.U_.size() != 64 || __x.V_.size() != 64) {
-				// 	throw "Wrong YUV size.";
-				// }
-				// // sub
-				// for (size_t i = 0; i < this->Y_.size(); i++) {
-				// 	this->Y_[i] -= __x.Y_[i];
-				// }
-				// for (size_t i = 0; i < this->U_.size(); i++) {
-				// 	this->U_[i] -= __x.U_[i];
-				// 	this->V_[i] -= __x.V_[i];
-				// }
-				for (size_t i = 0; i < this->RGB_.size(); i++) {
-					this->RGB_[i] -= __x.RGB_[i];
-				}
-				return *this;
-			}
-			catch (const char* error_message) {
-				std::cerr << "Fatal error in ColorCompensation : " << error_message << std::endl;
-				std::exit(1);
-			}
-		}
+		inline void Fill();
 
 		/***
 		 * @description: 3d-dct->quantization->zigzag-scan
@@ -323,215 +383,216 @@ namespace type {
 		 * @param {vector<int>&} __coefficients_v
 		 * @return {*}
 		 */
-		void YUVDCT3(std::vector<int>& __coefficients_y, std::vector<int>& __coefficients_u, std::vector<int>& __coefficients_v) {
-			// reserve space, 512 for y, 64 for u v
-			__coefficients_y.clear(), __coefficients_u.clear(), __coefficients_v.clear();
-			__coefficients_y.resize(512), __coefficients_u.resize(64), __coefficients_v.resize(64);
-			// for each y
-			for (int k1 = 0; k1 < 8; k1++) {
-				for (int k2 = 0; k2 < 8; k2++) {
-					for (int k3 = 0; k3 < 8; k3++) {
-						// sum each component
-						float sum = 0.0f;
-						for (int n1 = 0; n1 < 8; n1++) {
-							for (int n2 = 0; n2 < 8; n2++) {
-								for (int n3 = 0; n3 < 8; n3++) {
-									// turn xyz to morton index
-									size_t index = vvs::operation::XYZ2Index8(n1, n2, n3);
-									// cos transform, in [1]
-									sum += this->Y_[index] * cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1.0f) * k1) * cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1.0f) * k2) *
-									       cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1.0f) * k3);
-								}
-							}
-						}
-						// turn xyz to morton index
-						size_t y_index = vvs::operation::XYZ2Index8(k1, k2, k3);
-
-						// orth and zigzag in [1], quantization in [2]
-						__coefficients_y[ZigZag3D8[y_index]] =
-						    static_cast<int>(std::round((sum * vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) / 64.0f) / QuantizationStep[k1 + k2 + k3]));
-					}
-				}
-			}
-
-			// for each u v
-			for (int k1 = 0; k1 < 4; k1++) {
-				for (int k2 = 0; k2 < 4; k2++) {
-					for (int k3 = 0; k3 < 4; k3++) {
-						// sum each component
-						float sum_u = 0.0f, sum_v = 0.0f;
-						for (int n1 = 0; n1 < 4; n1++) {
-							for (int n2 = 0; n2 < 4; n2++) {
-								for (int n3 = 0; n3 < 4; n3++) {
-									// turn xyz to morton index
-									size_t index = vvs::operation::XYZ2Index4(n1, n2, n3);
-									// cos transform in [1]
-									sum_u += this->U_[index] * cos(M_PI / (2.0f * 4) * (2.0f * n1 + 1.0f) * k1) * cos(M_PI / (2.0f * 4) * (2.0f * n2 + 1.0f) * k2) *
-									         cos(M_PI / (2.0f * 4) * (2.0f * n3 + 1.0f) * k3);
-									sum_v += this->V_[index] * cos(M_PI / (2.0f * 4) * (2.0f * n1 + 1.0f) * k1) * cos(M_PI / (2.0f * 4) * (2.0f * n2 + 1.0f) * k2) *
-									         cos(M_PI / (2.0f * 4) * (2.0f * n3 + 1.0f) * k3);
-								}
-							}
-						}
-
-						// turn xyz to morton index
-						size_t uv_index = vvs::operation::XYZ2Index4(k1, k2, k3);
-
-						// orth and zigzag in [1], quantization in [2]
-						__coefficients_u[ZigZag3D4[uv_index]] =
-						    static_cast<int>(std::round(sum_u * vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) / 8.0f) / QuantizationStep[k1 + k2 + k3]);
-						__coefficients_v[ZigZag3D4[uv_index]] =
-						    static_cast<int>(std::round(sum_v * vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) / 8.0f) / QuantizationStep[k1 + k2 + k3]);
-					}
-				}
-			}
-		}
-
-		void RGBDCT3(std::vector<int>& __coefficients_r, std::vector<int>& __coefficients_g, std::vector<int>& __coefficients_b) {
-			// reserve space, 512 for y, 64 for u v
-			__coefficients_r.clear(), __coefficients_g.clear(), __coefficients_b.clear();
-			__coefficients_r.resize(512), __coefficients_g.resize(512), __coefficients_b.resize(512);
-
-			for (size_t i = 0; i < this->RGB_.size(); i++) {
-				this->RGB_[i].r_ -= 128, this->RGB_[i].g_ -= 128, this->RGB_[i].b_ -= 128;
-			}
-			// for each y
-			for (int k1 = 0; k1 < 8; k1++) {
-				for (int k2 = 0; k2 < 8; k2++) {
-					for (int k3 = 0; k3 < 8; k3++) {
-						// sum each component
-						float sum_r = 0.0f, sum_g = 0.0f, sum_b = 0.0f;
-						for (int n1 = 0; n1 < 8; n1++) {
-							for (int n2 = 0; n2 < 8; n2++) {
-								for (int n3 = 0; n3 < 8; n3++) {
-									// turn xyz to morton index
-									size_t index = vvs::operation::XYZ2Index8(n1, n2, n3);
-									// cos transform, in [1]
-									sum_r += this->RGB_[index].r_ * cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1.0f) * k1) * cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1.0f) * k2) *
-									         cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1.0f) * k3);
-									sum_g += this->RGB_[index].g_ * cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1.0f) * k1) * cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1.0f) * k2) *
-									         cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1.0f) * k3);
-									sum_b += this->RGB_[index].b_ * cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1.0f) * k1) * cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1.0f) * k2) *
-									         cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1.0f) * k3);
-								}
-							}
-						}
-						// turn xyz to morton index
-						size_t y_index = vvs::operation::XYZ2Index8(k1, k2, k3);
-
-						// orth and zigzag in [1], quantization in [2]
-						__coefficients_r[ZigZag3D8[y_index]] =
-						    static_cast<int>(std::round((sum_r * vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) / 64.0f) / QuantizationStep[k1 + k2 + k3]));
-						__coefficients_g[ZigZag3D8[y_index]] =
-						    static_cast<int>(std::round((sum_g * vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) / 64.0f) / QuantizationStep[k1 + k2 + k3]));
-						__coefficients_b[ZigZag3D8[y_index]] =
-						    static_cast<int>(std::round((sum_b * vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) / 64.0f) / QuantizationStep[k1 + k2 + k3]));
-					}
-				}
-			}
-		}
-
-		void RGBIDCT3(std::vector<int>& __coefficients_r, std::vector<int>& __coefficients_g, std::vector<int>& __coefficients_b) {
-			this->RGB_.clear();
-			this->RGB_.resize(512);
-			for (int k1 = 0; k1 < 8; k1++) {
-				for (int k2 = 0; k2 < 8; k2++) {
-					for (int k3 = 0; k3 < 8; k3++) {
-						size_t index = vvs::operation::XYZ2Index8(k1, k2, k3);
-						__coefficients_r[index] *= QuantizationStep[k1 + k2 + k3];
-						__coefficients_g[index] *= QuantizationStep[k1 + k2 + k3];
-						__coefficients_b[index] *= QuantizationStep[k1 + k2 + k3];
-
-						// __coefficients_r[index] *= 5.0f;
-						// __coefficients_g[index] *= 5.0f;
-						// __coefficients_b[index] *= 5.0f;
-					}
-				}
-			}
-			for (int n1 = 0; n1 < 8; n1++) {
-				for (int n2 = 0; n2 < 8; n2++) {
-					for (int n3 = 0; n3 < 8; n3++) {
-						float sum_r = 0.0f, sum_g = 0.0f, sum_b = 0.0f;
-						for (int k1 = 0; k1 < 8; k1++) {
-							for (int k2 = 0; k2 < 8; k2++) {
-								for (int k3 = 0; k3 < 8; k3++) {
-									size_t index = vvs::operation::XYZ2Index8(k1, k2, k3);
-									sum_r += vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) * __coefficients_r[ZigZag3D8[index]] *
-									         std::cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1) * k1) * std::cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1) * k2) *
-									         std::cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1) * k3);
-									sum_g += vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) * __coefficients_g[ZigZag3D8[index]] *
-									         std::cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1) * k1) * std::cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1) * k2) *
-									         std::cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1) * k3);
-									sum_b += vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) * __coefficients_b[ZigZag3D8[index]] *
-									         std::cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1) * k1) * std::cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1) * k2) *
-									         std::cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1) * k3);
-								}
-							}
-						}
-						// turn xyz to morton index
-						size_t y_index = vvs::operation::XYZ2Index8(n1, n2, n3);
-
-						this->RGB_[y_index].r_ = sum_r + 128, this->RGB_[y_index].g_ = sum_g + 128, this->RGB_[y_index].b_ = sum_b + 128;
-					}
-				}
-			}
-		}
-	};
-
-	// a compressed i-frame patch
-	struct IFramePatch {
-		// fitting patch octree
-		std::string   octree_;
-		pcl::PointXYZ center_;
-		size_t        tree_height_;
-		// fitting colors
-		std::string colors_;
-		// block number
-		size_t block_number_;
-	};
-
-	// a compressed p-frame patch
-	struct PFramePatch {
-		// coding mode tag
-		bool is_independent_;
-		// compressed octree, only be viable if is_independent_ is true
-		// fitting patch octree
-		std::string   octree_;
-		pcl::PointXYZ center_;
-		size_t        tree_height_;
-		// compressed colors
-		std::string colors_;
-		// block number
-		size_t block_number_;
-		// motion vector
-		Eigen::Matrix4f motion_vector_;
-
-		void clear() {
-			this->octree_.clear();
-			this->colors_.clear();
-		}
-	};
-
-	struct TreeNode {
-		uint8_t            subnodes_;
-		float              sig_y_, sig_u_, sig_v_;
-		std::vector<float> cof_y_, cof_u_, cof_v_;
-		size_t             weight_;
+		inline void YUVDCT3(std::vector<int>& __coefficients_y, std::vector<int>& __coefficients_u, std::vector<int>& __coefficients_v);
 
 		/***
-		 * @description: default constructor
-		 * @param {*}
+		 * @description: izigzag-scan-dequantization-3d-idct
+		 * @param {vector<int>&} __coefficients_y
+		 * @param {vector<int>&} __coefficients_u
+		 * @param {vector<int>&} __coefficients_v
 		 * @return {*}
 		 */
-		TreeNode() = default;
-
-		TreeNode(size_t __w) {
-			this->weight_   = __w;
-			this->subnodes_ = 0x00;
-			this->sig_y_ = this->sig_u_ = this->sig_v_ = 0.0f;
-		}
+		inline void YUVIDCT3(std::vector<int>& __coefficients_r, std::vector<int>& __coefficients_g, std::vector<int>& __coefficients_b);
 	};
 
+	/***
+	 * @description: copy constructor from yuv
+	 * @param {ColorYUV&} __x
+	 * @return {*}
+	 */
+	inline ColorRGB::ColorRGB(const ColorYUV& __x) {
+		this->r_ = 1.0f * __x.y_ + 1.4020f * __x.v_;
+		this->g_ = 1.0f * __x.y_ - 0.3441f * __x.u_ - 0.7141f * __x.v_;
+		this->b_ = 1.0f * __x.y_ + 1.7720f * __x.u_;
+	}
+
+	/***
+	 * @description: copy constructor from rgb
+	 * @param {ColorRGB&} __x
+	 * @return {*}
+	 */
+	inline ColorYUV::ColorYUV(const ColorRGB& __x) {
+		this->y_ = 0.299f * __x.r_ + 0.587f * __x.g_ + 0.114f * __x.b_;
+		this->u_ = -0.168736f * __x.r_ - 0.331264f * __x.g_ + 0.5f * __x.b_;
+		this->v_ = 0.5f * __x.r_ - 0.418688f * __x.g_ - 0.081312f * __x.b_;
+	}
+
+	/***
+	 * @description: compensation with a TreeNode
+	 * @param {TreeNode&} __node
+	 * @return {*}
+	 */
+	inline ColorYUV& ColorYUV::operator-=(const TreeNode& __node) {
+		this->y_ -= __node.sig_y_;
+		this->u_ -= __node.sig_u_;
+		this->v_ -= __node.sig_v_;
+		return *this;
+	}
+
+	/***
+	 * @description: inverse compensation with a TreeNode
+	 * @param {TreeNode&} __node
+	 * @return {*}
+	 */
+	inline ColorYUV& ColorYUV::operator+=(const TreeNode& __node) {
+		this->y_ += __node.sig_y_;
+		this->u_ += __node.sig_u_;
+		this->v_ += __node.sig_v_;
+		return *this;
+	}
+
+	/***
+	 * @description: set yuv signal by a RGB
+	 * @param {const ColorRGB&} __color
+	 * @return {*}
+	 */
+	inline void TreeNode::SetSignal(const vvs::type::ColorRGB& __color) {
+		this->sig_y_ = __color.r_ * 0.299f + __color.g_ * 0.587f + __color.b_ * 0.114f;
+		this->sig_u_ = __color.r_ * -0.168736f - __color.g_ * 0.331264f + __color.b_ * 0.5f;
+		this->sig_v_ = __color.r_ * 0.5f - __color.g_ * 0.418688f - __color.b_ * 0.081312f;
+	}
+
+	/***
+	 * @description: Add a real point to block
+	 * @param {ColorRGB&} __color
+	 * @return {*}
+	 */
+	inline void MacroBlock8::PushBack(const ColorYUV& __color) {
+		try {
+			if (!this->full()) {
+				this->points_.emplace_back(__color);
+			}
+			else {
+				throw "Block is full.";
+			}
+		}
+		catch (const char* error_message) {
+			std::cerr << "Fatal errro in MacroBlock8 PushBack : " << error_message << std::endl;
+			std::exit(1);
+		}
+	}
+
+	/***
+	 * @description: using 000 fill block to 512
+	 * @param {*}
+	 * @return {*}
+	 */
+	inline void MacroBlock8::Fill() {
+		while (!this->full()) {
+			this->PushBack(ColorYUV());
+		}
+	}
+
+	/***
+	 * @description: 3d-dct->quantization->zigzag-scan
+	 * @param {vector<int>&} __coefficients_y
+	 * @param {vector<int>&} __coefficients_u
+	 * @param {vector<int>&} __coefficients_v
+	 * @return {*}
+	 */
+	inline void MacroBlock8::YUVDCT3(std::vector<int>& __coefficients_y, std::vector<int>& __coefficients_u, std::vector<int>& __coefficients_v) {
+		try {
+			if (!this->full()) {
+				throw "MacroBlock8 is not full.";
+			}
+			// reserve space, 512 for y u v
+			__coefficients_y.clear(), __coefficients_u.clear(), __coefficients_v.clear();
+			__coefficients_y.resize(512), __coefficients_u.resize(512), __coefficients_v.resize(512);
+
+			// translate y to -128-128
+			for (auto& j : this->points_) {
+				j.y_ -= 128.0f;
+			}
+			// for each yuv
+			for (int k1 = 0; k1 < 8; k1++) {
+				for (int k2 = 0; k2 < 8; k2++) {
+					for (int k3 = 0; k3 < 8; k3++) {
+						// sum each component
+						float sum_y = 0.0f, sum_u = 0.0f, sum_v = 0.0f;
+						for (int n1 = 0; n1 < 8; n1++) {
+							for (int n2 = 0; n2 < 8; n2++) {
+								for (int n3 = 0; n3 < 8; n3++) {
+									// turn xyz to morton index
+									size_t index = vvs::operation::XYZ2Index8(n1, n2, n3);
+									// cos transform, in [1]
+									sum_y += this->points_[index].y_ * cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1.0f) * k1) * cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1.0f) * k2) *
+									         cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1.0f) * k3);
+									sum_u += this->points_[index].u_ * cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1.0f) * k1) * cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1.0f) * k2) *
+									         cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1.0f) * k3);
+									sum_v += this->points_[index].v_ * cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1.0f) * k1) * cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1.0f) * k2) *
+									         cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1.0f) * k3);
+								}
+							}
+						}
+						// turn xyz to morton index
+						size_t yuv_index = vvs::operation::XYZ2Index8(k1, k2, k3);
+
+						// orth and zigzag in [1], quantization in [2]
+						__coefficients_y[ZigZag3D8[yuv_index]] =
+						    static_cast<int>(std::round((sum_y * vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) / 64.0f) / QuantizationStep[k1 + k2 + k3]));
+						__coefficients_u[ZigZag3D8[yuv_index]] =
+						    static_cast<int>(std::round((sum_u * vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) / 64.0f) / QuantizationStep[k1 + k2 + k3]));
+						__coefficients_v[ZigZag3D8[yuv_index]] =
+						    static_cast<int>(std::round((sum_v * vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) / 64.0f) / QuantizationStep[k1 + k2 + k3]));
+					}
+				}
+			}
+		}
+		catch (const char* error_message) {
+			std::cerr << "Fatal error in MacroBlock8 YUVDCT3 : " << error_message << std::endl;
+			std::exit(1);
+		}
+	}
+
+	/***
+	 * @description: izigzag-scan-dequantization-3d-idct
+	 * @param {vector<int>&} __coefficients_y
+	 * @param {vector<int>&} __coefficients_u
+	 * @param {vector<int>&} __coefficients_v
+	 * @return {*}
+	 */
+	inline void MacroBlock8::YUVIDCT3(std::vector<int>& __coefficients_y, std::vector<int>& __coefficients_u, std::vector<int>& __coefficients_v) {
+		this->points_.clear();
+		this->points_.resize(512);
+		for (int k1 = 0; k1 < 8; k1++) {
+			for (int k2 = 0; k2 < 8; k2++) {
+				for (int k3 = 0; k3 < 8; k3++) {
+					size_t index = vvs::operation::XYZ2Index8(k1, k2, k3);
+					__coefficients_y[index] *= QuantizationStep[k1 + k2 + k3];
+					__coefficients_u[index] *= QuantizationStep[k1 + k2 + k3];
+					__coefficients_v[index] *= QuantizationStep[k1 + k2 + k3];
+				}
+			}
+		}
+
+		// for each yuv
+		for (int n1 = 0; n1 < 8; n1++) {
+			for (int n2 = 0; n2 < 8; n2++) {
+				for (int n3 = 0; n3 < 8; n3++) {
+					// sum all components
+					float sum_y = 0.0f, sum_u = 0.0f, sum_v = 0.0f;
+					for (int k1 = 0; k1 < 8; k1++) {
+						for (int k2 = 0; k2 < 8; k2++) {
+							for (int k3 = 0; k3 < 8; k3++) {
+								// morton index
+								size_t index = vvs::operation::XYZ2Index8(k1, k2, k3);
+								sum_y += vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) * __coefficients_y[ZigZag3D8[index]] *
+								         std::cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1) * k1) * std::cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1) * k2) * std::cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1) * k3);
+								sum_u += vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) * __coefficients_u[ZigZag3D8[index]] *
+								         std::cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1) * k1) * std::cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1) * k2) * std::cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1) * k3);
+								sum_v += vvs::operation::Orth(k1) * vvs::operation::Orth(k2) * vvs::operation::Orth(k3) * __coefficients_v[ZigZag3D8[index]] *
+								         std::cos(M_PI / (2.0f * 8) * (2.0f * n1 + 1) * k1) * std::cos(M_PI / (2.0f * 8) * (2.0f * n2 + 1) * k2) * std::cos(M_PI / (2.0f * 8) * (2.0f * n3 + 1) * k3);
+							}
+						}
+					}
+					// turn xyz to morton index
+					size_t yuv_index = vvs::operation::XYZ2Index8(n1, n2, n3);
+
+					this->points_[yuv_index].y_ = sum_y + 128, this->points_[yuv_index].u_ = sum_u, this->points_[yuv_index].v_ = sum_v;
+				}
+			}
+		}
+	}
 }  // namespace type
 
 namespace operation {
@@ -591,6 +652,258 @@ namespace operation {
 			__colors[i].r_ = static_cast<float>(buffer[i * 3]);
 			__colors[i].g_ = static_cast<float>(buffer[i * 3 + 1]);
 			__colors[i].b_ = static_cast<float>(buffer[i * 3 + 2]);
+		}
+	}
+
+	inline Eigen::Vector3f RAHTransform(float g0, float g1, size_t w0, size_t w1) {
+		// result : MergeSignal MergeCoffecients CofExist
+		Eigen::Vector3f result;
+		// no weight is positive, result(2) < 0, i.e., no coffecient
+		if (w0 == 0 && w1 == 0) {
+			result(0) = 0.0f;
+			result(2) = -1.0f;
+		}
+		// if only w0 is 0, MergeSignal is g1, no coffecient
+		else if (w0 == 0) {
+			result(0) = g1;
+			result(2) = -1.0f;
+		}
+		// if only w1 is 0, MergeSignal is g0, no coffecient
+		else if (w1 == 0) {
+			result(0) = g0;
+			result(2) = -1.0f;
+		}
+		// both w0 w1 are positive,
+		// [ g ] = [ √w0 √w1 ]
+		// [ h ]   [-√w1 √w0 ] / √(w0 + w1)
+		else {
+			float q0 = std::sqrt(w0), q1 = std::sqrt(w1);
+			float qs  = std::sqrt(w0 + w1);
+			result(0) = (q0 * g0 + q1 * g1) / qs;
+			result(1) = (q0 * g1 - q1 * g0) / qs;
+			result(2) = 1.0f;
+		}
+
+		return result;
+	}
+
+	inline void NodeSignalMerge3D(std::vector<float>& gys, std::vector<float>& gus, std::vector<float>& gvs, std::vector<size_t>& weight, vvs::type::TreeNode& node) {
+		// x-direction
+		std::vector<float>  xgys(4, 0.0f), xgus(4, 0.0f), xgvs(4, 0.0f);
+		std::vector<float>  xcofys, xcofus, xcofvs;
+		std::vector<size_t> xweights(4, 0);
+
+		for (size_t i = 0; i < 4; i++) {
+			Eigen::Vector3f resulty = RAHTransform(gys[i], gys[i + 4], weight[i], weight[i + 4]);
+			if (resulty(2) > 0.0f) {
+				xcofys.emplace_back(resulty(1));
+			}
+			xgys[i] = resulty(0);
+
+			Eigen::Vector3f resultu = RAHTransform(gus[i], gus[i + 4], weight[i], weight[i + 4]);
+			if (resultu(2) > 0.0f) {
+				xcofus.emplace_back(resultu(1));
+			}
+			xgus[i] = resultu(0);
+
+			Eigen::Vector3f resultv = RAHTransform(gvs[i], gvs[i + 4], weight[i], weight[i + 4]);
+			if (resultv(2) > 0.0f) {
+				xcofvs.emplace_back(resultv(1));
+			}
+			xgvs[i] = resultv(0);
+
+			xweights[i] = weight[i] + weight[i + 4];
+		}
+
+		// y-direction
+		std::vector<float>  ygys(2, 0.0f), ygus(2, 0.0f), ygvs(2, 0.0f);
+		std::vector<float>  ycofys, ycofus, ycofvs;
+		std::vector<size_t> yweights(2, 0);
+
+		for (size_t i = 0; i < 2; i++) {
+			Eigen::Vector3f resulty = RAHTransform(xgys[i], xgys[i + 2], xweights[i], xweights[i + 2]);
+			if (resulty(2) > 0.0f) {
+				ycofys.emplace_back(resulty(1));
+			}
+			ygys[i] = resulty(0);
+
+			Eigen::Vector3f resultu = RAHTransform(xgus[i], xgus[i + 2], xweights[i], xweights[i + 2]);
+			if (resultu(2) > 0.0f) {
+				ycofus.emplace_back(resultu(1));
+			}
+			ygus[i] = resultu(0);
+
+			Eigen::Vector3f resultv = RAHTransform(xgvs[i], xgvs[i + 2], xweights[i], xweights[i + 2]);
+			if (resultv(2) > 0.0f) {
+				ycofvs.emplace_back(resultv(1));
+			}
+			ygvs[i] = resultv(0);
+
+			yweights[i] = xweights[i] + xweights[i + 2];
+		}
+
+		// z-direction
+		float              zgys = 0.0f, zgus = 0.0f, zgvs = 0.0f;
+		std::vector<float> zcofys, zcofus, zcofvs;
+		size_t             zweights = 0;
+
+		Eigen::Vector3f resulty = RAHTransform(ygys[0], ygys[1], yweights[0], yweights[1]);
+		if (resulty(2) > 0.0f) {
+			zcofys.emplace_back(resulty(1));
+		}
+		zgys = resulty(0);
+
+		Eigen::Vector3f resultu = RAHTransform(ygus[0], ygus[1], yweights[0], yweights[1]);
+		if (resultu(2) > 0.0f) {
+			zcofus.emplace_back(resultu(1));
+		}
+		zgus = resultu(0);
+
+		Eigen::Vector3f resultv = RAHTransform(ygvs[0], ygvs[1], yweights[0], yweights[1]);
+		if (resultv(2) > 0.0f) {
+			zcofvs.emplace_back(resultv(1));
+		}
+		zgvs = resultv(0);
+
+		zweights = yweights[0] + yweights[1];
+
+		node.sig_y_ = zgys, node.sig_u_ = zgus, node.sig_v_ = zgvs;
+
+		for (auto& i : zcofys) {
+			node.cof_y_.emplace_back(i);
+		}
+		for (auto& i : ycofys) {
+			node.cof_y_.emplace_back(i);
+		}
+		for (auto& i : xcofys) {
+			node.cof_y_.emplace_back(i);
+		}
+
+		for (auto& i : zcofus) {
+			node.cof_u_.emplace_back(i);
+		}
+		for (auto& i : ycofus) {
+			node.cof_u_.emplace_back(i);
+		}
+		for (auto& i : xcofus) {
+			node.cof_u_.emplace_back(i);
+		}
+
+		for (auto& i : zcofvs) {
+			node.cof_v_.emplace_back(i);
+		}
+		for (auto& i : ycofvs) {
+			node.cof_v_.emplace_back(i);
+		}
+		for (auto& i : xcofvs) {
+			node.cof_v_.emplace_back(i);
+		}
+	}
+
+	inline Eigen::Vector2f IRAHTransform(float g, float h, size_t w0, size_t w1) {
+		Eigen::Vector2f result;
+
+		float a = std::sqrt(w0);
+		float b = std::sqrt(w1);
+		float s = std::sqrt(w0 + w1);
+
+		g *= s, h *= s;
+
+		result(0) = (a * g - b * h) / (w0 + w1);
+		result(1) = (b * g + a * h) / (w0 + w1);
+
+		return result;
+	}
+
+	inline void NodeSignalIMerge3D(std::vector<float>& gys, std::vector<float>& gus, std::vector<float>& gvs, std::vector<size_t>& weight, vvs::type::TreeNode& node) {
+		size_t cof_index = 0;
+
+		// iz-dimension
+		size_t zweight0 = weight[0] + weight[2] + weight[4] + weight[6], zweight1 = weight[1] + weight[3] + weight[5] + weight[7];
+
+		std::vector<float> zgys(2, 0.0f), zgus(2, 0.0f), zgvs(2, 0.0f);
+
+		if (zweight0 == 0) {
+			zgys[1] = node.sig_y_;
+			zgus[1] = node.sig_u_;
+			zgvs[1] = node.sig_v_;
+		}
+		else if (zweight1 == 0) {
+			zgys[0] = node.sig_y_;
+			zgus[0] = node.sig_u_;
+			zgvs[0] = node.sig_v_;
+		}
+		else {
+			Eigen::Vector2f resulty = IRAHTransform(node.sig_y_, node.cof_y_[cof_index], zweight0, zweight1);
+			zgys[0]                 = resulty(0);
+			zgys[1]                 = resulty(1);
+
+			Eigen::Vector2f resultu = IRAHTransform(node.sig_u_, node.cof_u_[cof_index], zweight0, zweight1);
+			zgus[0]                 = resultu(0);
+			zgus[1]                 = resultu(1);
+
+			Eigen::Vector2f resultv = IRAHTransform(node.sig_v_, node.cof_v_[cof_index], zweight0, zweight1);
+			zgvs[0]                 = resultv(0);
+			zgvs[1]                 = resultv(1);
+
+			cof_index++;
+		}
+
+		// iy-dimension
+		std::vector<size_t> yweights(4);
+		yweights[0] = weight[0] + weight[4], yweights[1] = weight[1] + weight[5], yweights[2] = weight[2] + weight[6], yweights[3] = weight[3] + weight[7];
+
+		std::vector<float> ygys(4, 0.0f), ygus(4, 0.0f), ygvs(4, 0.0f);
+
+		for (size_t i = 0; i < 2; i++) {
+			if (yweights[i] == 0) {
+				ygys[i + 2] = zgys[i];
+				ygus[i + 2] = zgus[i];
+				ygvs[i + 2] = zgvs[i];
+			}
+			else if (yweights[i + 2] == 0) {
+				ygys[i] = zgys[i];
+				ygus[i] = zgus[i];
+				ygvs[i] = zgvs[i];
+			}
+			else {
+				Eigen::Vector2f resulty = IRAHTransform(zgys[i], node.cof_y_[cof_index], yweights[i], yweights[i + 2]);
+				ygys[i] = resulty(0), ygys[i + 2] = resulty(1);
+
+				Eigen::Vector2f resultu = IRAHTransform(zgus[i], node.cof_u_[cof_index], yweights[i], yweights[i + 2]);
+				ygus[i] = resultu(0), ygus[i + 2] = resultu(1);
+
+				Eigen::Vector2f resultv = IRAHTransform(zgvs[i], node.cof_v_[cof_index], yweights[i], yweights[i + 2]);
+				ygvs[i] = resultv(0), ygvs[i + 2] = resultv(1);
+
+				cof_index++;
+			}
+		}
+
+		// ix-dimension
+		for (size_t i = 0; i < 4; i++) {
+			if (weight[i] == 0) {
+				gys[i + 4] = ygys[i];
+				gus[i + 4] = ygus[i];
+				gvs[i + 4] = ygvs[i];
+			}
+			else if (weight[i + 4] == 0) {
+				gys[i] = ygys[i];
+				gus[i] = ygus[i];
+				gvs[i] = ygvs[i];
+			}
+			else {
+				Eigen::Vector2f resulty = IRAHTransform(ygys[i], node.cof_y_[cof_index], weight[i], weight[i + 4]);
+				gys[i] = resulty(0), gys[i + 4] = resulty(1);
+
+				Eigen::Vector2f resultu = IRAHTransform(ygus[i], node.cof_u_[cof_index], weight[i], weight[i + 4]);
+				gus[i] = resultu(0), gus[i + 4] = resultu(1);
+
+				Eigen::Vector2f resultv = IRAHTransform(ygvs[i], node.cof_v_[cof_index], weight[i], weight[i + 4]);
+				gvs[i] = resultv(0), gvs[i + 4] = resultv(1);
+
+				cof_index++;
+			}
 		}
 	}
 }  // namespace operation

@@ -41,6 +41,7 @@ else()
 endif()
 
 message(${CMAKE_EXPORT_COMPILE_COMMANDS})
+
 add_subdirectory(${CMAKE_SOURCE_DIR}/src)
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/test/CMakeLists.txt")

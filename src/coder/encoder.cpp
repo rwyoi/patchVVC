@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-07-05 17:44:25
+ * @LastEditTime: 2022-07-09 16:26:14
  * @LastEditors: ChenRP07
  * @Description: Implement of Volumetric Video Encoder.
  */
@@ -180,8 +180,11 @@ void coder::Encoder::EncodingProc() {
 			return;
 		}
 		else {
+			if (index == 8) {
+				this->point_clouds_[index].out = true;
+			}
 			this->point_clouds_[index].GenerateFittingPatch(this->kMSEThreshold, 100.0f, 100);
-			this->point_clouds_[index].PatchColorFitting(5);
+			this->point_clouds_[index].PatchColorFitting(3);
 			// this->point_clouds_[index].Output(this->test_[index], 0);
 			this->point_clouds_[index].Compression(this->i_frame_patches_[index], this->p_frame_patches_[index]);
 		}
@@ -300,8 +303,6 @@ void coder::Encoder::OutputIFrame(const std::string& __i_frame_name) {
 			data_size = this->i_frame_patches_[i].octree_.size();
 			fwrite(&data_size, sizeof(size_t), 1, fp);
 			fwrite(this->i_frame_patches_[i].octree_.c_str(), sizeof(char), this->i_frame_patches_[i].octree_.size(), fp);
-
-			// fwrite(&(this->i_frame_patches_[i].block_number_), sizeof(size_t), 1, fp);
 
 			data_size = this->i_frame_patches_[i].colors_.size();
 			fwrite(&data_size, sizeof(size_t), 1, fp);

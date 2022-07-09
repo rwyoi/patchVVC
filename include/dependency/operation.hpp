@@ -658,7 +658,7 @@ namespace operation {
 	inline char Int2CharL(int __x) {
 		int16_t y;
 		if (__x <= -32768) {
-			y = -32768;
+			y = -32767;
 		}
 		else if (__x >= 32767) {
 			y = 32767;
@@ -677,7 +677,7 @@ namespace operation {
 	inline char Int2CharH(int __x) {
 		int16_t y;
 		if (__x <= -32768) {
-			y = -32768;
+			y = -32767;
 		}
 		else if (__x >= 32767) {
 			y = 32767;
@@ -698,6 +698,23 @@ namespace operation {
 		return static_cast<int>(y);
 	}
 
+	inline float Char2Float4(char c0, char c1, char c2, char c3) {
+		int result = 0x00000000;
+		result |= (0x000000ff & c0), result <<= 8;
+		result |= (0x000000ff & c1), result <<= 8;
+		result |= (0x000000ff & c2), result <<= 8;
+		result |= (0x000000ff & c3);
+		return static_cast<float>(result);
+	}
+
+	inline int Char2Int4(char c0, char c1, char c2, char c3) {
+		int result = 0x00000000;
+		result |= (0x000000ff & c0), result <<= 8;
+		result |= (0x000000ff & c1), result <<= 8;
+		result |= (0x000000ff & c2), result <<= 8;
+		result |= (0x000000ff & c3);
+		return result;
+	}
 }  // namespace operation
 
 }  // namespace vvs

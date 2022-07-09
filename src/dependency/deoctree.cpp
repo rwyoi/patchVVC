@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-07-04 11:35:23
- * @LastEditTime: 2022-07-04 15:30:46
+ * @LastEditTime: 2022-07-09 16:34:34
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -30,7 +30,7 @@ void DeOctree3D::SetCenter(const pcl::PointXYZ& __center) {
  * @return {*}
  */
 void DeOctree3D::SetHeight(const size_t __height) {
-	this->tree_height_ = __height;
+	this->tree_height_ = __height - 1;
 }
 
 /***
@@ -65,7 +65,7 @@ void DeOctree3D::SetTree(std::string& __tree) {
 		nodes.resize(kDecompressedSize);
 
 		// allocate space
-		this->tree_nodes_.resize(this->tree_height_, std::vector<uint8_t>());
+		this->tree_nodes_.resize(this->tree_height_);
 
 		// how many nodes in this layer
 		size_t __layer_node_count = 1;
@@ -90,6 +90,9 @@ void DeOctree3D::SetTree(std::string& __tree) {
 				// add this node to tree
 				this->tree_nodes_[i].emplace_back(data);
 
+				if (i == this->tree_height_ - 1) {
+					this->tree_nodes_[i].back().SetWeight(vvs::operation::NodePointCount(data));
+				}
 				// element index + 1
 				__nodes_string_index++;
 			}
@@ -119,7 +122,7 @@ void DeOctree3D::SetTree(std::string& __tree) {
 			for (size_t j = 0; j < this->tree_nodes_[i].size(); j++) {
 				// 1-bits position
 				std::vector<size_t> pos;
-				vvs::operation::NodePointPosition(this->tree_nodes_[i][j], pos);
+				vvs::operation::NodePointPosition(this->tree_nodes_[i][j].subnodes_, pos);
 
 				// for each 1-bit
 				for (auto& k : pos) {
@@ -131,10 +134,171 @@ void DeOctree3D::SetTree(std::string& __tree) {
 			// resolution of next layer is half of this layer
 			Res /= 2;
 		}
+
+		// updata all node weights
+		for (int i = this->tree_height_ - 2; i >= 0; i--) {
+			size_t node_index = 0;
+			for (size_t j = 0; j < this->tree_nodes_[i].size(); j++) {
+				size_t count                    = vvs::operation::NodePointCount(this->tree_nodes_[i][j].subnodes_);
+				this->tree_nodes_[i][j].weight_ = 0;
+				for (size_t k = 0; k < count; k++) {
+					this->tree_nodes_[i][j].weight_ += this->tree_nodes_[i + 1][node_index].weight_;
+					node_index++;
+				}
+			}
+		}
 	}
 	catch (const char* error_message) {
 		std::cerr << "Fatal error in DeOctree3D SetTree : " << error_message << std::endl;
 		std::exit(1);
+	}
+}
+
+void DeOctree3D::IRAHT(std::string& __source, size_t point_count, std::vector<vvs::type::ColorYUV>& __result, const int kQStep) {
+	std::string  temp;
+	const size_t kBufferSize = ZSTD_getFrameContentSize(__source.c_str(), __source.size());
+	if (kBufferSize == 0 || kBufferSize == ZSTD_CONTENTSIZE_UNKNOWN || kBufferSize == ZSTD_CONTENTSIZE_ERROR) {
+		throw "Wrong buffer size.";
+	}
+
+	// reserve space
+	temp.resize(kBufferSize);
+
+	// decompress
+	const size_t kDecompressedSize = ZSTD_decompress(const_cast<char*>(temp.c_str()), kBufferSize, __source.c_str(), __source.size());
+
+	// if error?
+	const size_t __error_code = ZSTD_isError(kDecompressedSize);
+	if (__error_code != 0) {
+		throw "Wrong decompressed string size.";
+	}
+
+	// free excess space
+	temp.resize(kDecompressedSize);
+
+	std::vector<float> coffs_y, coffs_u, coffs_v;
+
+	// scan coffs
+	size_t cofs_size  = point_count;
+	size_t cofs_index = 0;
+	coffs_y.emplace_back(vvs::operation::Char2Float4(temp[cofs_index], temp[cofs_index + 1], temp[cofs_index + 2], temp[cofs_index + 3]));
+	cofs_index += 4;
+
+	for (size_t j = 1; j < cofs_size; j++) {
+#ifdef _RAHT_FIX_16_
+		coffs_y.emplace_back(static_cast<float>(vvs::operation::Char2Int(temp[cofs_index], temp[cofs_index + 1])));
+		cofs_index += 2;
+#endif
+#ifdef _RAHT_FIX_8_
+		coffs_y.emplace_back(static_cast<float>(temp[cofs_index]));
+		cofs_index++;
+#endif
+	}
+
+	coffs_u.emplace_back(vvs::operation::Char2Float4(temp[cofs_index], temp[cofs_index + 1], temp[cofs_index + 2], temp[cofs_index + 3]));
+	cofs_index += 4;
+
+	for (size_t j = 1; j < cofs_size; j++) {
+#ifdef _RAHT_FIX_16_
+		coffs_u.emplace_back(static_cast<float>(vvs::operation::Char2Int(temp[cofs_index], temp[cofs_index + 1])));
+		cofs_index += 2;
+#endif
+#ifdef _RAHT_FIX_8_
+		coffs_u.emplace_back(static_cast<float>(temp[cofs_index]));
+		cofs_index++;
+#endif
+	}
+
+	coffs_v.emplace_back(vvs::operation::Char2Float4(temp[cofs_index], temp[cofs_index + 1], temp[cofs_index + 2], temp[cofs_index + 3]));
+	cofs_index += 4;
+
+	for (size_t j = 1; j < cofs_size; j++) {
+#ifdef _RAHT_FIX_16_
+		coffs_v.emplace_back(static_cast<float>(vvs::operation::Char2Int(temp[cofs_index], temp[cofs_index + 1])));
+		cofs_index += 2;
+#endif
+#ifdef _RAHT_FIX_8_
+		coffs_v.emplace_back(static_cast<float>(temp[cofs_index]));
+		cofs_index++;
+#endif
+	}
+
+	// dequantization
+	for (auto& i : coffs_y) {
+		i *= kQStep;
+	}
+	for (auto& i : coffs_u) {
+		i *= kQStep;
+	}
+	for (auto& i : coffs_v) {
+		i *= kQStep;
+	}
+
+	// final signal
+	this->tree_nodes_[0][0].sig_y_ = coffs_y[0];
+	this->tree_nodes_[0][0].sig_u_ = coffs_u[0];
+	this->tree_nodes_[0][0].sig_v_ = coffs_v[0];
+
+	// index for coff
+	size_t coffs_scan_index = 1;
+
+	// point count
+	size_t point_cnt = 0;
+	// fore each layer
+	for (size_t i = 0; i < this->tree_height_; i++) {
+		// for each node
+		// subnode index in next layer
+		size_t next_layer_index = 0;
+		for (size_t j = 0; j < this->tree_nodes_[i].size(); j++) {
+			// 1-bits position
+			std::vector<size_t> pos;
+			vvs::operation::NodePointPosition(this->tree_nodes_[i][j].subnodes_, pos);
+
+			// non-empty subnodes weight
+			std::vector<size_t> weight(8, 0);
+			if (i != tree_height_ - 1) {
+				for (size_t k = 0; k < pos.size(); k++) {
+					weight[pos[k]] = this->tree_nodes_[i + 1][next_layer_index + k].weight_;
+				}
+			}
+			// last layer subnode weight is 1
+			else {
+				for (size_t k = 0; k < pos.size(); k++) {
+					weight[pos[k]] = 1;
+				}
+			}
+
+			// coffs number is 1-bits number - 1
+			for (size_t k = 0; k < pos.size() - 1; k++) {
+				this->tree_nodes_[i][j].cof_y_.emplace_back(coffs_y[coffs_scan_index]);
+				this->tree_nodes_[i][j].cof_u_.emplace_back(coffs_u[coffs_scan_index]);
+				this->tree_nodes_[i][j].cof_v_.emplace_back(coffs_v[coffs_scan_index]);
+				coffs_scan_index++;
+			}
+
+			// subnodes signals
+			std::vector<float> gys(8, 0.0f), gus(8, 0.0f), gvs(8, 0.0f);
+
+			vvs::operation::NodeSignalIMerge3D(gys, gus, gvs, weight, this->tree_nodes_[i][j]);
+
+			// if not real point
+			if (i != this->tree_height_ - 1) {
+				for (size_t k = 0; k < pos.size(); k++) {
+					this->tree_nodes_[i + 1][next_layer_index].sig_y_ = gys[pos[k]];
+					this->tree_nodes_[i + 1][next_layer_index].sig_u_ = gus[pos[k]];
+					this->tree_nodes_[i + 1][next_layer_index].sig_v_ = gvs[pos[k]];
+
+					next_layer_index++;
+				}
+			}
+			else {
+				for (size_t k = 0; k < pos.size(); k++) {
+					vvs::type::ColorYUV color;
+					color.y_ = gys[pos[k]], color.u_ = gus[pos[k]], color.v_ = gvs[pos[k]];
+					__result.emplace_back(color);
+				}
+			}
+		}
 	}
 }
 
@@ -143,7 +307,7 @@ void DeOctree3D::SetTree(std::string& __tree) {
  * @param {PointCloud<PointXYZ>&} __patch
  * @return {*}
  */
-void DeOctree3D::GetPatch(pcl::PointCloud<pcl::PointXYZ>& __patch) {
+void DeOctree3D::GetPatch(std::string& __color_source, pcl::PointCloud<pcl::PointXYZ>& __patch, std::vector<vvs::type::ColorYUV>& __colors) {
 	// allocate some space
 	__patch.resize(this->tree_nodes_.back().size() * 8);
 
@@ -154,11 +318,12 @@ void DeOctree3D::GetPatch(pcl::PointCloud<pcl::PointXYZ>& __patch) {
 	for (size_t i = 0; i < this->tree_nodes_.back().size(); i++) {
 		// 1-bit pos
 		std::vector<size_t> pos;
-		vvs::operation::NodePointPosition(this->tree_nodes_.back()[i], pos);
+		vvs::operation::NodePointPosition(this->tree_nodes_.back()[i].subnodes_, pos);
 
 		// for each 1-bit
 		for (auto& k : pos) {
 			// calculate point
+			pcl::PointXYZ point;
 			vvs::operation::SubnodePoint(this->tree_points_.back()[i], k, __patch[point_cnt]);
 			point_cnt++;
 		}
@@ -166,4 +331,6 @@ void DeOctree3D::GetPatch(pcl::PointCloud<pcl::PointXYZ>& __patch) {
 
 	// delete excess space
 	__patch.resize(point_cnt);
+
+	this->IRAHT(__color_source, __patch.size(), __colors);
 }

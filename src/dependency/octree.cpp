@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-30 14:33:25
- * @LastEditTime: 2022-07-05 14:57:30
+ * @LastEditTime: 2022-07-09 16:47:18
  * @LastEditors: ChenRP07
  * @Description: Implement of octree
  */
@@ -49,7 +49,7 @@ void Octree3D::SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cl
 		this->tree_center_.z   = (max_z + min_z) / 2.0f;
 
 		// tree height is log2(resolution)
-		this->tree_height_ = static_cast<size_t>(std::log2(this->tree_resolution_));
+		this->tree_height_ = static_cast<size_t>(std::log2(this->tree_resolution_)) + 1;
 		this->tree_nodes_.resize(this->tree_height_);
 
 		// use a index vector to indicate if there is point in a octree node.
@@ -58,14 +58,16 @@ void Octree3D::SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cl
 			__octree_points[i] = i;
 		}
 
-		// allocate space for colors
-		this->tree_colors_.resize(__point_colors.size(), std::vector<vvs::type::MacroBlock8>(1, vvs::type::MacroBlock8()));
+		this->colors_.resize(__point_colors.size());
 
 		// add tree node recursively
 		this->AddTreeNode(__point_cloud, __point_colors, __octree_points, 0, this->tree_resolution_, this->tree_center_);
 
-		for (auto& i : this->tree_colors_) {
-			i.back().Fill();
+		// color compensation
+		for (size_t i = 1; i < this->colors_.size(); i++) {
+			for (size_t j = 0; j < this->colors_[i].size(); j++) {
+				this->colors_[i][j] -= this->colors_[0][j];
+			}
 		}
 	}
 	catch (const char* error_message) {
@@ -91,24 +93,9 @@ bool Octree3D::AddTreeNode(const pcl::PointCloud<pcl::PointXYZRGB>& __point_clou
 		if (__node_points.empty()) {
 			return false;
 		}
-		// leave layer, add real color
-		else if (__height == this->tree_height_) {
-			for (size_t i = 0; i < this->tree_colors_.size(); i++) {
-				// voxel downsampling
-				vvs::type::ColorRGB color;
-				for (auto& k : __node_points) {
-					color += __point_colors[i][k];
-				}
-				color /= __node_points.size();
-				// check if the last block is empty
-				if (this->tree_colors_[i].back().full()) {
-					this->tree_colors_[i].emplace_back();
-				}
-				this->tree_colors_[i].back().PushBack(color);
-			}
-			return true;
-		}
-		else if (__height < this->tree_height_) {
+		else if (__height < this->tree_height_ - 1) {
+			// new node
+			vvs::type::TreeNode node(__node_points.size());
 			// for 8 subnodes
 			std::vector<std::vector<size_t>> __subnodes_value(8, std::vector<size_t>());
 
@@ -133,8 +120,31 @@ bool Octree3D::AddTreeNode(const pcl::PointCloud<pcl::PointXYZRGB>& __point_clou
 				__node_value_bits[i]       = this->AddTreeNode(__point_cloud, __point_colors, __subnodes_value[i], __height + 1, __res / 2, __new_center);
 			}
 
+			node.SetNode(vvs::operation::BoolSetToUChar(__node_value_bits));
 			// add node to octree
-			this->tree_nodes_[__height].push_back(vvs::operation::BoolSetToUChar(__node_value_bits));
+			this->tree_nodes_[__height].emplace_back(node);
+			return true;
+		}
+		// leave layer, add real color
+		else if (__height == this->tree_height_ - 1) {
+			vvs::type::TreeNode node(static_cast<size_t>(1));
+			vvs::type::ColorRGB i_color;
+			for (size_t i = 0; i < this->colors_.size(); i++) {
+				// voxel downsampling
+				vvs::type::ColorRGB color;
+				for (auto& k : __node_points) {
+					color += __point_colors[i][k];
+				}
+				color /= __node_points.size();
+
+				// add color to colors_
+				this->colors_[i].emplace_back(color);
+				if (i == 0) {
+					i_color = color;
+				}
+			}
+			node.SetSignal(i_color);
+			this->tree_nodes_[__height].emplace_back(node);
 			return true;
 		}
 		else {
@@ -164,9 +174,9 @@ void Octree3D::TreeCompression(std::string& __result, pcl::PointXYZ& __center, s
 		std::string __source;
 
 		// add tree node to __source
-		for (auto& i : this->tree_nodes_) {
-			for (auto& j : i) {
-				__source += static_cast<char>(j);
+		for (size_t i = 0; i < this->tree_height_ - 1; i++) {
+			for (auto& j : this->tree_nodes_[i]) {
+				__source += static_cast<char>(j.subnodes_);
 			}
 		}
 
@@ -198,105 +208,278 @@ void Octree3D::TreeCompression(std::string& __result, pcl::PointXYZ& __center, s
 }
 
 /***
+ * @description: RAHT in [1], output compressed bytestream to __result, quantization is kQStep
+ * @param {string&} __result
+ * @param {int} kQStep
+ * @return {*}
+ */
+void Octree3D::RAHT(std::string& __result, const int kQStep) {
+	try {
+		// for each layer
+		for (int i = this->tree_height_ - 2; i >= 0; i--) {
+			// index for next layer
+			size_t node_index = 0;
+			// for each node
+			for (int j = 0; j < this->tree_nodes_[i].size(); j++) {
+				// subnodes signals
+				std::vector<float> gys(8, 0.0f), gus(8, 0.0f), gvs(8, 0.0f);
+				// subnodes 1-bit positions
+				std::vector<size_t> pos;
+				// subnodes weights
+				std::vector<size_t> weight(8, 0);
+
+				// get 1-bit positions
+				vvs::operation::NodePointPosition(this->tree_nodes_[i][j].subnodes_, pos);
+
+				for (auto& k : pos) {
+					// get 1-bit node weight
+					weight[k] = this->tree_nodes_[i + 1][node_index].weight_;
+					// get 1-bit node signals
+					gys[k] = this->tree_nodes_[i + 1][node_index].sig_y_;
+					gus[k] = this->tree_nodes_[i + 1][node_index].sig_u_;
+					gvs[k] = this->tree_nodes_[i + 1][node_index].sig_v_;
+					// index ++
+					node_index++;
+				}
+				vvs::operation::NodeSignalMerge3D(gys, gus, gvs, weight, this->tree_nodes_[i][j]);
+			}
+		}
+
+		// coffecients
+		std::vector<float> coff_y, coff_u, coff_v;
+
+		// final signals
+		coff_y.emplace_back(this->tree_nodes_[0][0].sig_y_);
+		coff_u.emplace_back(this->tree_nodes_[0][0].sig_u_);
+		coff_v.emplace_back(this->tree_nodes_[0][0].sig_v_);
+
+		// all coffecients
+		for (size_t i = 0; i < this->tree_height_ - 1; i++) {
+			for (size_t j = 0; j < this->tree_nodes_[i].size(); j++) {
+				for (auto& k : this->tree_nodes_[i][j].cof_y_) {
+					coff_y.emplace_back(k);
+				}
+				for (auto& k : this->tree_nodes_[i][j].cof_u_) {
+					coff_u.emplace_back(k);
+				}
+				for (auto& k : this->tree_nodes_[i][j].cof_v_) {
+					coff_v.emplace_back(k);
+				}
+			}
+		}
+
+		// quantization
+		std::vector<int> Qcoff_y, Qcoff_u, Qcoff_v;
+
+		for (auto& k : coff_y) {
+			Qcoff_y.emplace_back(static_cast<int>(std::round(k / kQStep)));
+		}
+		for (auto& k : coff_u) {
+			Qcoff_u.emplace_back(static_cast<int>(std::round(k / kQStep)));
+		}
+		for (auto& k : coff_v) {
+			Qcoff_v.emplace_back(static_cast<int>(std::round(k / kQStep)));
+		}
+
+		std::string temp;
+
+		// first signal is 32-bit int
+		temp += static_cast<char>(Qcoff_y[0] >> 24), temp += static_cast<char>(Qcoff_y[0] >> 16), temp += static_cast<char>(Qcoff_y[0] >> 8), temp += static_cast<char>(Qcoff_y[0]);
+		// others are 16-bit int
+		for (size_t i = 1; i < Qcoff_y.size(); i++) {
+#ifdef _RAHT_FIX_16_
+			temp += static_cast<char>(Qcoff_y[i] >> 8);
+			temp += static_cast<char>(Qcoff_y[i]);
+#endif
+#ifdef _RAHT_FIX_8_
+			temp += vvs::operation::Int2Char(Qcoff_y[i]);
+#endif
+		}
+
+		temp += static_cast<char>(Qcoff_u[0] >> 24), temp += static_cast<char>(Qcoff_u[0] >> 16), temp += static_cast<char>(Qcoff_u[0] >> 8), temp += static_cast<char>(Qcoff_u[0]);
+		for (size_t i = 1; i < Qcoff_u.size(); i++) {
+#ifdef _RAHT_FIX_16_
+			temp += static_cast<char>(Qcoff_u[i] >> 8);
+			temp += static_cast<char>(Qcoff_u[i]);
+#endif
+#ifdef _RAHT_FIX_8_
+			temp += vvs::operation::Int2Char(Qcoff_u[i]);
+#endif
+		}
+
+		temp += static_cast<char>(Qcoff_v[0] >> 24), temp += static_cast<char>(Qcoff_v[0] >> 16), temp += static_cast<char>(Qcoff_v[0] >> 8), temp += static_cast<char>(Qcoff_v[0]);
+		for (size_t i = 1; i < Qcoff_v.size(); i++) {
+#ifdef _RAHT_FIX_16_
+			temp += static_cast<char>(Qcoff_v[i] >> 8);
+			temp += static_cast<char>(Qcoff_v[i]);
+#endif
+#ifdef _RAHT_FIX_8_
+			temp += vvs::operation::Int2Char(Qcoff_v[i]);
+#endif
+		}
+
+		// malloc some space
+		const size_t kBufferSize = ZSTD_compressBound(temp.size());
+		__result.resize(kBufferSize);
+
+		// compression
+		const size_t kCompressedSize = ZSTD_compress(const_cast<char*>(__result.c_str()), kBufferSize, temp.c_str(), temp.size(), ZSTD_maxCLevel());
+
+		// if error?
+		const size_t __error_code = ZSTD_isError(kCompressedSize);
+		if (__error_code != 0) {
+			throw "Wrong compressed string size.";
+		}
+
+		// delete excess space
+		__result.resize(kCompressedSize);
+	}
+	catch (const char* error_message) {
+		std::cerr << "Fatal error in Octree3D RAHT : " << error_message << std::endl;
+		std::exit(1);
+	}
+}
+
+/***
  * @description: color compression, Y_DCs Y_AC EOB Y_AC EOB ... U_DCs U_AC EOB U_AC EOB ... V_DCs V_AC EOB V_AC EOB ...
  * @param {vector<string>&} __result;
  * @return {size_t} number of blocks
  */
-size_t Octree3D::ColorCompression(std::vector<std::string>& __result) {
+size_t Octree3D::ColorCompression(std::vector<std::string>& __result, int kQStep) {
 	try {
 		// allocate space
-		__result.resize(this->tree_colors_.size());
-		// color compensation
-		for (size_t i = 1; i < this->tree_colors_.size(); i++) {
-			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-				this->tree_colors_[i][j] -= this->tree_colors_[0][j];
-			}
-		}
+		__result.resize(this->colors_.size());
 
-		std::vector<vvs::type::ColorRGB> i_colors;
-		for (size_t i = 0; i < this->tree_colors_[0].size(); i++) {
-			for (size_t j = 0; j < this->tree_colors_[0][i].RGB_.size(); j++) {
-				i_colors.emplace_back(this->tree_colors_[0][i].RGB_[j]);
-			}
-		}
-		vvs::operation::JPEGCompression(i_colors, __result[0]);
+		// RAHT for first frame
+		this->RAHT(__result[0], kQStep);
 
-		for (size_t i = 1; i < this->tree_colors_.size(); i++) {
-			std::vector<std::vector<int>> __coefficients_r(this->tree_colors_[i].size()), __coefficients_g(this->tree_colors_[i].size()), __coefficients_b(this->tree_colors_[i].size());
+		size_t blocks_number = 0;
+		// for other colors
+		for (size_t i = 1; i < this->colors_.size(); i++) {
+			std::vector<vvs::type::MacroBlock8> blocks(1, vvs::type::MacroBlock8());
+
+			for (size_t j = 0; j < this->colors_[i].size(); j++) {
+				if (blocks.back().full()) {
+					blocks.emplace_back();
+				}
+				blocks.back().PushBack(this->colors_[i][j]);
+			}
+
+			blocks.back().Fill();
+
+			blocks_number = blocks.size();
+			std::vector<std::vector<int>> __coefficients_y(blocks.size()), __coefficients_u(blocks.size()), __coefficients_v(blocks.size());
 			// DCT quantization and zigzag-scan for each block.
-			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-				this->tree_colors_[i][j].RGBDCT3(__coefficients_r[j], __coefficients_g[j], __coefficients_b[j]);
+			for (size_t j = 0; j < blocks.size(); j++) {
+				blocks[j].YUVDCT3(__coefficients_y[j], __coefficients_u[j], __coefficients_v[j]);
 			}
 
 			std::string source;
-
-			// scan the r, first DC is represented by 16-bit int
-			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-				source += vvs::operation::Int2CharH(__coefficients_r[j][0]);
-				source += vvs::operation::Int2CharL(__coefficients_r[j][0]);
+			if (out) {
+				std::ofstream ou("out.txt");
+				for (size_t i = 0; i < blocks.size(); i++) {
+					for (size_t j = 0; j < __coefficients_y[i].size(); j++) {
+						ou << __coefficients_y[i][j] << " " << __coefficients_u[i][j] << " " << __coefficients_v[i][j] << std::endl;
+					}
+				}
+			}
+			// scan the y, first DC is represented by 32-bit int
+			for (size_t j = 0; j < __coefficients_y.size(); j++) {
+				source += static_cast<char>(__coefficients_y[j][0] >> 24), source += static_cast<char>(__coefficients_y[j][0] >> 16), source += static_cast<char>(__coefficients_y[j][0] >> 8),
+				    source += static_cast<char>(__coefficients_y[j][0]);
 			}
 
-			// ACs are represented by 8-bit int
-			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
+			// ACs are represented by 16-bit int
+			for (size_t j = 0; j < __coefficients_y.size(); j++) {
 				// behind count, all ACs are 0;
 				size_t count = 0;
 				for (size_t k = 511; k >= 1; k--) {
-					if (__coefficients_r[j][k] != 0) {
+					if (__coefficients_y[j][k] != 0) {
 						count = k;
 						break;
 					}
 				}
 				for (size_t k = 1; k <= count; k++) {
-					source += vvs::operation::Int2Char(__coefficients_r[j][k]);
+#ifdef _DCT_FIX_16_
+					source += vvs::operation::Int2CharH(__coefficients_y[j][k]);
+					source += vvs::operation::Int2CharL(__coefficients_y[j][k]);
+#endif
+#ifdef _DCT_FIX_8_
+					source += vvs::operation::Int2Char(__coefficients_y[j][k]);
+#endif
 				}
-
+#ifdef _DCT_FIX_16_
+				source += static_cast<char>(0x80), source += static_cast<char>(0x00);
+#endif
+#ifdef _DCT_FIX_8_
 				source += static_cast<char>(-128);
+#endif
 			}
 
-			// scan the g
-			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-				source += vvs::operation::Int2CharH(__coefficients_g[j][0]);
-				source += vvs::operation::Int2CharL(__coefficients_g[j][0]);
+			// scan the y, first DC is represented by 32-bit int
+			for (size_t j = 0; j < __coefficients_u.size(); j++) {
+				source += static_cast<char>(__coefficients_u[j][0] >> 24), source += static_cast<char>(__coefficients_u[j][0] >> 16), source += static_cast<char>(__coefficients_u[j][0] >> 8),
+				    source += static_cast<char>(__coefficients_u[j][0]);
 			}
 
-			// ACs are represented by 8-bit int
-			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
+			// ACs are represented by 16-bit int
+			for (size_t j = 0; j < __coefficients_u.size(); j++) {
 				// behind count, all ACs are 0;
 				size_t count = 0;
 				for (size_t k = 511; k >= 1; k--) {
-					if (__coefficients_g[j][k] != 0) {
+					if (__coefficients_u[j][k] != 0) {
 						count = k;
 						break;
 					}
 				}
 				for (size_t k = 1; k <= count; k++) {
-					source += vvs::operation::Int2Char(__coefficients_g[j][k]);
+#ifdef _DCT_FIX_16_
+					source += vvs::operation::Int2CharH(__coefficients_u[j][k]);
+					source += vvs::operation::Int2CharL(__coefficients_u[j][k]);
+#endif
+#ifdef _DCT_FIX_8_
+					source += vvs::operation::Int2Char(__coefficients_u[j][k]);
+#endif
 				}
-
+#ifdef _DCT_FIX_16_
+				source += static_cast<char>(0x80), source += static_cast<char>(0x00);
+#endif
+#ifdef _DCT_FIX_8_
 				source += static_cast<char>(-128);
+#endif
 			}
 
-			// scan the b
-			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
-				source += vvs::operation::Int2CharH(__coefficients_b[j][0]);
-				source += vvs::operation::Int2CharL(__coefficients_b[j][0]);
+			// scan the y, first DC is represented by 32-bit int
+			for (size_t j = 0; j < __coefficients_v.size(); j++) {
+				source += static_cast<char>(__coefficients_v[j][0] >> 24), source += static_cast<char>(__coefficients_v[j][0] >> 16), source += static_cast<char>(__coefficients_v[j][0] >> 8),
+				    source += static_cast<char>(__coefficients_v[j][0]);
 			}
 
-			// ACs are represented by 8-bit int
-			for (size_t j = 0; j < this->tree_colors_[i].size(); j++) {
+			// ACs are represented by 16-bit int
+			for (size_t j = 0; j < __coefficients_v.size(); j++) {
 				// behind count, all ACs are 0;
 				size_t count = 0;
 				for (size_t k = 511; k >= 1; k--) {
-					if (__coefficients_b[j][k] != 0) {
+					if (__coefficients_v[j][k] != 0) {
 						count = k;
 						break;
 					}
 				}
 				for (size_t k = 1; k <= count; k++) {
-					source += vvs::operation::Int2Char(__coefficients_b[j][k]);
+#ifdef _DCT_FIX_16_
+					source += vvs::operation::Int2CharH(__coefficients_v[j][k]);
+					source += vvs::operation::Int2CharL(__coefficients_v[j][k]);
+#endif
+#ifdef _DCT_FIX_8_
+					source += vvs::operation::Int2Char(__coefficients_v[j][k]);
+#endif
 				}
-
+#ifdef _DCT_FIX_16_
+				source += static_cast<char>(0x80), source += static_cast<char>(0x00);
+#endif
+#ifdef _DCT_FIX_8_
 				source += static_cast<char>(-128);
+#endif
 			}
 
 			// compress
@@ -315,7 +498,7 @@ size_t Octree3D::ColorCompression(std::vector<std::string>& __result) {
 			__result[i].resize(kCompressedSize);
 		}
 
-		return this->tree_colors_[0].size();
+		return blocks_number;
 	}
 	catch (const char* error_message) {
 		std::cerr << "Fatal error in Octree ColorCompression : " << error_message << std::endl;
@@ -363,7 +546,7 @@ void SingleOctree3D::SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __po
 		this->tree_center_.z   = (max_z + min_z) / 2.0f;
 
 		// tree height is log2(resolution)
-		this->tree_height_ = static_cast<size_t>(std::log2(this->tree_resolution_));
+		this->tree_height_ = static_cast<size_t>(std::log2(this->tree_resolution_)) + 1;
 		this->tree_nodes_.resize(this->tree_height_);
 
 		// use a index vector to indicate if there is point in a octree node.
@@ -396,21 +579,9 @@ bool SingleOctree3D::AddTreeNode(const pcl::PointCloud<pcl::PointXYZRGB>& __poin
 		if (__node_points.empty()) {
 			return false;
 		}
-		// leave layer, add real color
-		else if (__height == this->tree_height_) {
-			// voxel downsampling
-			vvs::type::ColorRGB color;
-			for (auto& k : __node_points) {
-				vvs::type::ColorRGB temp(__point_cloud[k]);
-				color += temp;
-			}
-			color /= __node_points.size();
-
-			this->tree_colors_.emplace_back(color);
-
-			return true;
-		}
-		else if (__height < this->tree_height_) {
+		else if (__height < this->tree_height_ - 1) {
+			// new node
+			vvs::type::TreeNode node(__node_points.size());
 			// for 8 subnodes
 			std::vector<std::vector<size_t>> __subnodes_value(8, std::vector<size_t>());
 
@@ -435,10 +606,28 @@ bool SingleOctree3D::AddTreeNode(const pcl::PointCloud<pcl::PointXYZRGB>& __poin
 				__node_value_bits[i]       = this->AddTreeNode(__point_cloud, __subnodes_value[i], __height + 1, __res / 2, __new_center);
 			}
 
+			node.SetNode(vvs::operation::BoolSetToUChar(__node_value_bits));
 			// add node to octree
-			this->tree_nodes_[__height].push_back(vvs::operation::BoolSetToUChar(__node_value_bits));
+			this->tree_nodes_[__height].emplace_back(node);
 			return true;
 		}
+		// leave layer, add real color
+		else if (__height == this->tree_height_ - 1) {
+			vvs::type::TreeNode node(static_cast<size_t>(1));
+			// voxel downsampling
+			vvs::type::ColorRGB color;
+			for (auto& k : __node_points) {
+				vvs::type::ColorRGB temp(__point_cloud[k]);
+				color += temp;
+			}
+			color /= __node_points.size();
+
+			node.SetSignal(color);
+			this->tree_nodes_[__height].emplace_back(node);
+
+			return true;
+		}
+
 		else {
 			throw "Height out of range.";
 		}
@@ -466,9 +655,9 @@ void SingleOctree3D::TreeCompression(std::string& __result, pcl::PointXYZ& __cen
 		std::string __source;
 
 		// add tree node to __source
-		for (auto& i : this->tree_nodes_) {
-			for (auto& j : i) {
-				__source += static_cast<char>(j);
+		for (size_t i = 0; i < this->tree_height_ - 1; i++) {
+			for (auto& j : this->tree_nodes_[i]) {
+				__source += static_cast<char>(j.subnodes_);
 			}
 		}
 
@@ -500,16 +689,116 @@ void SingleOctree3D::TreeCompression(std::string& __result, pcl::PointXYZ& __cen
 }
 
 /***
- * @description: color compression, Y_DCs Y_AC EOB Y_AC EOB ... U_DCs U_AC EOB U_AC EOB ... V_DCs V_AC EOB V_AC EOB ...
- * @param {string&} __result;
- * @return {size_t} number of blocks
+ * @description: RAHT in [1], output compressed bytestream to __result, quantization is kQStep
+ * @param {string&} __result
+ * @param {int} kQStep
+ * @return {*}
  */
-void SingleOctree3D::ColorCompression(std::string& __result) {
+void SingleOctree3D::RAHT(std::string& __result, const int kQStep) {
 	try {
-		vvs::operation::JPEGCompression(this->tree_colors_, __result);
+		// for each layer
+		for (int i = this->tree_height_ - 2; i >= 0; i--) {
+			// index for next layer
+			size_t node_index = 0;
+			// for each node
+			for (int j = 0; j < this->tree_nodes_[i].size(); j++) {
+				// subnodes signals
+				std::vector<float> gys(8, 0.0f), gus(8, 0.0f), gvs(8, 0.0f);
+				// subnodes 1-bit positions
+				std::vector<size_t> pos;
+				// subnodes weights
+				std::vector<size_t> weight(8, 0);
+
+				// get 1-bit positions
+				vvs::operation::NodePointPosition(this->tree_nodes_[i][j].subnodes_, pos);
+
+				for (auto& k : pos) {
+					// get 1-bit node weight
+					weight[k] = this->tree_nodes_[i + 1][node_index].weight_;
+					// get 1-bit node signals
+					gys[k] = this->tree_nodes_[i + 1][node_index].sig_y_;
+					gus[k] = this->tree_nodes_[i + 1][node_index].sig_u_;
+					gvs[k] = this->tree_nodes_[i + 1][node_index].sig_v_;
+					// index ++
+					node_index++;
+				}
+				vvs::operation::NodeSignalMerge3D(gys, gus, gvs, weight, this->tree_nodes_[i][j]);
+			}
+		}
+
+		// coffecients
+		std::vector<float> coff_y, coff_u, coff_v;
+
+		// final signals
+		coff_y.emplace_back(this->tree_nodes_[0][0].sig_y_);
+		coff_u.emplace_back(this->tree_nodes_[0][0].sig_u_);
+		coff_v.emplace_back(this->tree_nodes_[0][0].sig_v_);
+
+		// all coffecients
+		for (size_t i = 0; i < this->tree_height_ - 1; i++) {
+			for (size_t j = 0; j < this->tree_nodes_[i].size(); j++) {
+				for (auto& k : this->tree_nodes_[i][j].cof_y_) {
+					coff_y.emplace_back(k);
+				}
+				for (auto& k : this->tree_nodes_[i][j].cof_u_) {
+					coff_u.emplace_back(k);
+				}
+				for (auto& k : this->tree_nodes_[i][j].cof_v_) {
+					coff_v.emplace_back(k);
+				}
+			}
+		}
+
+		// quantization
+		std::vector<int> Qcoff_y, Qcoff_u, Qcoff_v;
+
+		for (auto& k : coff_y) {
+			Qcoff_y.emplace_back(static_cast<int>(std::round(k / kQStep)));
+		}
+		for (auto& k : coff_u) {
+			Qcoff_u.emplace_back(static_cast<int>(std::round(k / kQStep)));
+		}
+		for (auto& k : coff_v) {
+			Qcoff_v.emplace_back(static_cast<int>(std::round(k / kQStep)));
+		}
+
+		std::string temp;
+
+		// first signal is 32-bit int
+		temp += static_cast<char>(Qcoff_y[0] >> 24), temp += static_cast<char>(Qcoff_y[0] >> 16), temp += static_cast<char>(Qcoff_y[0] >> 8), temp += static_cast<char>(Qcoff_y[0]);
+		// others are 16-bit int
+		for (size_t i = 1; i < Qcoff_y.size(); i++) {
+			temp += static_cast<char>(Qcoff_y[i] >> 8), temp += static_cast<char>(Qcoff_y[i]);
+		}
+
+		temp += static_cast<char>(Qcoff_u[0] >> 24), temp += static_cast<char>(Qcoff_u[0] >> 16), temp += static_cast<char>(Qcoff_u[0] >> 8), temp += static_cast<char>(Qcoff_u[0]);
+		for (size_t i = 1; i < Qcoff_u.size(); i++) {
+			temp += static_cast<char>(Qcoff_u[i] >> 8), temp += static_cast<char>(Qcoff_u[i]);
+		}
+
+		temp += static_cast<char>(Qcoff_v[0] >> 24), temp += static_cast<char>(Qcoff_v[0] >> 16), temp += static_cast<char>(Qcoff_v[0] >> 8), temp += static_cast<char>(Qcoff_v[0]);
+		for (size_t i = 1; i < Qcoff_v.size(); i++) {
+			temp += static_cast<char>(Qcoff_v[i] >> 8), temp += static_cast<char>(Qcoff_v[i]);
+		}
+
+		// malloc some space
+		const size_t kBufferSize = ZSTD_compressBound(temp.size());
+		__result.resize(kBufferSize);
+
+		// compression
+		const size_t kCompressedSize = ZSTD_compress(const_cast<char*>(__result.c_str()), kBufferSize, temp.c_str(), temp.size(), ZSTD_maxCLevel());
+
+		// if error?
+		const size_t __error_code = ZSTD_isError(kCompressedSize);
+		if (__error_code != 0) {
+			throw "Wrong compressed string size.";
+		}
+
+		// delete excess space
+		__result.resize(kCompressedSize);
 	}
 	catch (const char* error_message) {
-		std::cerr << "Fatal error in Octree ColorCompression : " << error_message << std::endl;
+		std::cerr << "Fatal error in Octree3D RAHT : " << error_message << std::endl;
 		std::exit(1);
 	}
 }

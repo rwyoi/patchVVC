@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:13:32
- * @LastEditTime: 2022-07-05 16:47:44
+ * @LastEditTime: 2022-07-09 15:37:34
  * @LastEditors: ChenRP07
  * @Description: Header of Volumetric Video Encoder
  */
@@ -106,12 +106,12 @@ namespace coder {
 	class Decoder {
 	  private:
 		std::vector<pcl::PointCloud<pcl::PointXYZ>>   fitting_patches_;
-		std::vector<std::vector<vvs::type::ColorRGB>> fitting_colors_;
+		std::vector<std::vector<vvs::type::ColorYUV>> fitting_colors_;
 		std::vector<vvs::type::IFramePatch>           I_Frame_Patches_;
 		std::vector<vvs::type::PFramePatch>           P_Frame_Patches_;
 
 		std::vector<pcl::PointCloud<pcl::PointXYZ>>   single_patches_;
-		std::vector<std::vector<vvs::type::ColorRGB>> p_colors_;
+		std::vector<std::vector<vvs::type::ColorYUV>> p_colors_;
 
 		std::queue<size_t> task_pool_;
 		std::mutex         task_mutex_;
@@ -124,7 +124,7 @@ namespace coder {
 
 		const size_t kThreads;
 
-		void GetColorProc(size_t index, int __frame);
+		void GetColorProc(size_t index);
 		void GetIFrameProc();
 		void GetPFrameProc();
 

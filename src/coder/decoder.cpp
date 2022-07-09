@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-07-01 16:21:06
- * @LastEditTime: 2022-07-07 20:58:46
+ * @LastEditTime: 2022-07-09 16:51:31
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -203,17 +203,19 @@ void coder::Decoder::GetIFrame(pcl::PointCloud<pcl::PointXYZRGB>& __i_frame) {
 		i.join();
 	}
 
+	gettimeofday(&time2, nullptr);
+	printf("IFrame decoding cost %.6fs.\n", time2.tv_sec - time1.tv_sec + (float)(time2.tv_usec - time1.tv_usec) / 1e6);
+
 	for (size_t i = 0; i < kPatchNumber; i++) {
 		for (size_t j = 0; j < this->fitting_patches_[i].size(); j++) {
 			pcl::PointXYZRGB point;
 			point.x = this->fitting_patches_[i][j].x, point.y = this->fitting_patches_[i][j].y, point.z = this->fitting_patches_[i][j].z;
-			point.r = static_cast<uint8_t>(this->fitting_colors_[i][j].r_), point.g = static_cast<uint8_t>(this->fitting_colors_[i][j].g_),
-			point.b = static_cast<uint8_t>(this->fitting_colors_[i][j].b_);
+
+			vvs::type::ColorRGB rgb_color(this->fitting_colors_[i][j]);
+			point.r = static_cast<uint8_t>(rgb_color.r_), point.g = static_cast<uint8_t>(rgb_color.g_), point.b = static_cast<uint8_t>(rgb_color.b_);
 			IPatches[i].emplace_back(point);
 		}
 	}
-	gettimeofday(&time2, nullptr);
-	printf("IFrame decoding cost %.6fs.\n", time2.tv_sec - time1.tv_sec + (float)(time2.tv_usec - time1.tv_usec) / 1e6);
 
 	for (auto& i : IPatches) {
 		for (auto& j : i) {
@@ -247,13 +249,16 @@ void coder::Decoder::GetPFrame(pcl::PointCloud<pcl::PointXYZRGB>& __p_frame) {
 	for (auto& i : task_threads) {
 		i.join();
 	}
+	gettimeofday(&time2, nullptr);
+	printf("PFrame decoding cost %.6fs.\n", time2.tv_sec - time1.tv_sec + (float)(time2.tv_usec - time1.tv_usec) / 1e6);
 
 	for (size_t i = 0; i < kPatchNumber; i++) {
 		if (!this->P_Frame_Patches_[i].is_independent_) {
 			for (size_t j = 0; j < this->fitting_patches_[i].size(); j++) {
 				pcl::PointXYZRGB point;
 				point.x = this->fitting_patches_[i][j].x, point.y = this->fitting_patches_[i][j].y, point.z = this->fitting_patches_[i][j].z;
-				point.r = static_cast<uint8_t>(this->p_colors_[i][j].r_), point.g = static_cast<uint8_t>(this->p_colors_[i][j].g_), point.b = static_cast<uint8_t>(this->p_colors_[i][j].b_);
+				vvs::type::ColorRGB rgb_color(this->p_colors_[i][j]);
+				point.r = static_cast<uint8_t>(rgb_color.r_), point.g = static_cast<uint8_t>(rgb_color.g_), point.b = static_cast<uint8_t>(rgb_color.b_);
 				Patches[i].emplace_back(point);
 			}
 		}
@@ -261,13 +266,12 @@ void coder::Decoder::GetPFrame(pcl::PointCloud<pcl::PointXYZRGB>& __p_frame) {
 			for (size_t j = 0; j < this->single_patches_[i].size(); j++) {
 				pcl::PointXYZRGB point;
 				point.x = this->single_patches_[i][j].x, point.y = this->single_patches_[i][j].y, point.z = this->single_patches_[i][j].z;
-				point.r = static_cast<uint8_t>(this->p_colors_[i][j].r_), point.g = static_cast<uint8_t>(this->p_colors_[i][j].g_), point.b = static_cast<uint8_t>(this->p_colors_[i][j].b_);
+				vvs::type::ColorRGB rgb_color(this->p_colors_[i][j]);
+				point.r = static_cast<uint8_t>(rgb_color.r_), point.g = static_cast<uint8_t>(rgb_color.g_), point.b = static_cast<uint8_t>(rgb_color.b_);
 				Patches[i].emplace_back(point);
 			}
 		}
 	}
-	gettimeofday(&time2, nullptr);
-	printf("PFrame decoding cost %.6fs.\n", time2.tv_sec - time1.tv_sec + (float)(time2.tv_usec - time1.tv_usec) / 1e6);
 
 	for (size_t i = 0; i < this->kPatchNumber; i++) {
 		vvs::operation::PointCloudMul(Patches[i], this->P_Frame_Patches_[i].motion_vector_.inverse());
@@ -292,14 +296,14 @@ void coder::Decoder::GetIFrameProc() {
 			return;
 		}
 		else {
-			std::thread color_proc;
-			color_proc = std::thread(&coder::Decoder::GetColorProc, this, index, 0);
 			vvs::octree::DeOctree3D deoctree(this->kMinResolution);
+			if (index == 8) {
+				deoctree.out = true;
+			}
 			deoctree.SetCenter(this->I_Frame_Patches_[index].center_);
 			deoctree.SetHeight(this->I_Frame_Patches_[index].tree_height_);
 			deoctree.SetTree(this->I_Frame_Patches_[index].octree_);
-			deoctree.GetPatch(this->fitting_patches_[index]);
-			color_proc.join();
+			deoctree.GetPatch(this->I_Frame_Patches_[index].colors_, this->fitting_patches_[index], this->fitting_colors_[index]);
 		}
 	}
 }
@@ -320,126 +324,158 @@ void coder::Decoder::GetPFrameProc() {
 		}
 		else {
 			if (!this->P_Frame_Patches_[index].is_independent_) {
-				GetColorProc(index, 1);
+				GetColorProc(index);
 			}
 			else {
-				std::thread color_proc;
-				color_proc = std::thread(&coder::Decoder::GetColorProc, this, index, 2);
-
 				vvs::octree::DeOctree3D deoctree(this->kMinResolution);
 				deoctree.SetCenter(this->P_Frame_Patches_[index].center_);
 				deoctree.SetHeight(this->P_Frame_Patches_[index].tree_height_);
 				deoctree.SetTree(this->P_Frame_Patches_[index].octree_);
-				deoctree.GetPatch(this->single_patches_[index]);
-				color_proc.join();
+				deoctree.GetPatch(this->P_Frame_Patches_[index].colors_, this->single_patches_[index], this->p_colors_[index]);
 			}
 		}
 	}
 }
 
-void coder::Decoder::GetColorProc(size_t index, int __frame) {
+void coder::Decoder::GetColorProc(size_t index) {
 	try {
-		std::string coffecients;
-		size_t      blocks;
-		if (__frame == 0) {
-			vvs::operation::JPEGDecompression(this->fitting_colors_[index], this->I_Frame_Patches_[index].colors_);
+		std::string  coffecients;
+		size_t       blocks;
+		const size_t kBufferSize = ZSTD_getFrameContentSize(this->P_Frame_Patches_[index].colors_.c_str(), this->P_Frame_Patches_[index].colors_.size());
+
+		if (kBufferSize == 0 || kBufferSize == ZSTD_CONTENTSIZE_UNKNOWN || kBufferSize == ZSTD_CONTENTSIZE_ERROR) {
+			throw "Wrong buffer size.";
 		}
-		else if (__frame == 2) {
-			vvs::operation::JPEGDecompression(this->p_colors_[index], this->P_Frame_Patches_[index].colors_);
+
+		coffecients.resize(kBufferSize);
+
+		// decompression
+		const size_t kDecompressedSize =
+		    ZSTD_decompress(const_cast<char*>(coffecients.c_str()), kBufferSize, this->P_Frame_Patches_[index].colors_.c_str(), this->P_Frame_Patches_[index].colors_.size());
+
+		// if error?
+		const size_t __error_code = ZSTD_isError(kDecompressedSize);
+		if (__error_code != 0) {
+			throw "Wrong decompressed string size.";
 		}
-		else {
-			const size_t kBufferSize = ZSTD_getFrameContentSize(this->P_Frame_Patches_[index].colors_.c_str(), this->P_Frame_Patches_[index].colors_.size());
 
-			if (kBufferSize == 0 || kBufferSize == ZSTD_CONTENTSIZE_UNKNOWN || kBufferSize == ZSTD_CONTENTSIZE_ERROR) {
-				throw "Wrong buffer size.";
-			}
+		// free excess space
+		coffecients.resize(kDecompressedSize);
+		blocks = this->P_Frame_Patches_[index].block_number_;
 
-			coffecients.resize(kBufferSize);
+		std::vector<std::vector<int>> coff_y(blocks, std::vector<int>(512, 0));
+		std::vector<std::vector<int>> coff_u(blocks, std::vector<int>(512, 0));
+		std::vector<std::vector<int>> coff_v(blocks, std::vector<int>(512, 0));
 
-			// decompression
-			const size_t kDecompressedSize =
-			    ZSTD_decompress(const_cast<char*>(coffecients.c_str()), kBufferSize, this->P_Frame_Patches_[index].colors_.c_str(), this->P_Frame_Patches_[index].colors_.size());
+		std::vector<vvs::type::MacroBlock8> color_blocks(blocks);
 
-			// if error?
-			const size_t __error_code = ZSTD_isError(kDecompressedSize);
-			if (__error_code != 0) {
-				throw "Wrong decompressed string size.";
-			}
-
-			// free excess space
-			coffecients.resize(kDecompressedSize);
-			blocks = this->P_Frame_Patches_[index].block_number_;
-
-			std::vector<std::vector<int>> coff_r(blocks, std::vector<int>(512, 0));
-			std::vector<std::vector<int>> coff_g(blocks, std::vector<int>(512, 0));
-			std::vector<std::vector<int>> coff_b(blocks, std::vector<int>(512, 0));
-
-			std::vector<vvs::type::MacroBlock8> color_blocks(blocks);
-
-			size_t coff_index = 0;
-			for (size_t i = 0; i < blocks; i++) {
-				coff_r[i][0] = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
+		size_t coff_index = 0;
+		for (size_t i = 0; i < blocks; i++) {
+			coff_y[i][0] = vvs::operation::Char2Int4(coffecients[coff_index], coffecients[coff_index + 1], coffecients[coff_index + 2], coffecients[coff_index + 3]);
+			coff_index += 4;
+		}
+		for (size_t i = 0; i < blocks; i++) {
+			for (size_t j = 1; j < 512; j++) {
+#ifdef _DCT_FIX_16_
+				int number = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
 				coff_index += 2;
-			}
-			for (size_t i = 0; i < blocks; i++) {
-				for (size_t j = 1; j < 512; j++) {
-					if (coffecients[coff_index] != static_cast<char>(-128)) {
-						coff_r[i][j] = static_cast<int>(coffecients[coff_index]);
-						coff_index++;
-					}
-					else {
-						coff_index++;
-						break;
-					}
+				if (number != -32768) {
+					coff_y[i][j] = number;
 				}
+				else {
+					break;
+				}
+#endif
+#ifdef _DCT_FIX_8_
+				int number = static_cast<char>(coffecients[coff_index]);
+				coff_index++;
+				if (num != -128) {
+					coff_y[i][j] = number;
+				}
+				else {
+					break;
+				}
+#endif
 			}
+		}
 
-			for (size_t i = 0; i < blocks; i++) {
-				coff_g[i][0] = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
+		for (size_t i = 0; i < blocks; i++) {
+			coff_u[i][0] = vvs::operation::Char2Int4(coffecients[coff_index], coffecients[coff_index + 1], coffecients[coff_index + 2], coffecients[coff_index + 3]);
+			coff_index += 4;
+		}
+		for (size_t i = 0; i < blocks; i++) {
+			for (size_t j = 1; j < 512; j++) {
+#ifdef _DCT_FIX_16_
+				int number = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
 				coff_index += 2;
-			}
-			for (size_t i = 0; i < blocks; i++) {
-				for (size_t j = 1; j < 512; j++) {
-					if (coffecients[coff_index] != static_cast<char>(-128)) {
-						coff_g[i][j] = static_cast<int>(coffecients[coff_index]);
-						coff_index++;
-					}
-					else {
-						coff_index++;
-						break;
-					}
+				if (number != -32768) {
+					coff_u[i][j] = number;
 				}
+				else {
+					break;
+				}
+#endif
+#ifdef _DCT_FIX_8_
+				int number = static_cast<char>(coffecients[coff_index]);
+				coff_index++;
+				if (num != -128) {
+					coff_u[i][j] = number;
+				}
+				else {
+					break;
+				}
+#endif
 			}
+		}
 
-			for (size_t i = 0; i < blocks; i++) {
-				coff_b[i][0] = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
+		for (size_t i = 0; i < blocks; i++) {
+			coff_v[i][0] = vvs::operation::Char2Int4(coffecients[coff_index], coffecients[coff_index + 1], coffecients[coff_index + 2], coffecients[coff_index + 3]);
+			coff_index += 4;
+		}
+		for (size_t i = 0; i < blocks; i++) {
+			for (size_t j = 1; j < 512; j++) {
+#ifdef _DCT_FIX_16_
+				int number = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
 				coff_index += 2;
+				if (number != -32768) {
+					coff_v[i][j] = number;
+				}
+				else {
+					break;
+				}
+#endif
+#ifdef _DCT_FIX_8_
+				int number = static_cast<char>(coffecients[coff_index]);
+				coff_index++;
+				if (num != -128) {
+					coff_v[i][j] = number;
+				}
+				else {
+					break;
+				}
+#endif
 			}
-			for (size_t i = 0; i < blocks; i++) {
-				for (size_t j = 1; j < 512; j++) {
-					if (coffecients[coff_index] != static_cast<char>(-128)) {
-						coff_b[i][j] = static_cast<int>(coffecients[coff_index]);
-						coff_index++;
-					}
-					else {
-						coff_index++;
-						break;
-					}
+		}
+
+		for (size_t i = 0; i < blocks; i++) {
+			color_blocks[i].YUVIDCT3(coff_y[i], coff_u[i], coff_v[i]);
+		}
+
+		if (index == 8) {
+			std::ofstream ou("res.txt");
+			for (size_t i = 0; i < coff_y.size(); i++) {
+				for (size_t j = 0; j < coff_y[i].size(); j++) {
+					ou << coff_y[i][j] << " " << coff_u[i][j] << " " << coff_v[i][j] << std::endl;
 				}
 			}
-
-			for (size_t i = 0; i < blocks; i++) {
-				color_blocks[i].RGBIDCT3(coff_r[i], coff_g[i], coff_b[i]);
+		}
+		for (size_t i = 0; i < blocks; i++) {
+			for (size_t j = 0; j < 512; j++) {
+				this->p_colors_[index].emplace_back(color_blocks[i].points_[j]);
 			}
-
-			for (size_t i = 0; i < blocks; i++) {
-				for (size_t j = 0; j < 512; j++) {
-					this->p_colors_[index].emplace_back(color_blocks[i].RGB_[j]);
-				}
-			}
-			for (size_t i = 0; i < this->p_colors_[index].size(); i++) {
-				this->p_colors_[index][i] += this->fitting_colors_[index][i];
-			}
+		}
+		for (size_t i = 0; i < this->p_colors_[index].size(); i++) {
+			this->p_colors_[index][i] += this->fitting_colors_[index][i];
 		}
 	}
 	catch (const char* error_message) {

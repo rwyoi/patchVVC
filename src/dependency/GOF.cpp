@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:06:07
- * @LastEditTime: 2022-07-08 11:29:45
+ * @LastEditTime: 2022-07-09 16:25:20
  * @LastEditors: ChenRP07
  * @Description: Implement of GroupOfFrames, including create, compression
  */
@@ -471,13 +471,18 @@ void GOF::PatchColorFitting(const int kInterpolationNumber) {
 void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::PFramePatch>& __p_frames) {
 	// compress fitting patch
 	vvs::octree::Octree3D fit_tree;
+	if (out) {
+		fit_tree.out = true;
+	}
+
 	fit_tree.SetPointCloud(this->fitting_patch_, this->patches_colors_);
 
 	// compressed colors
 	std::vector<std::string> compressed_colors;
 	fit_tree.TreeCompression(__i_frame.octree_, __i_frame.center_, __i_frame.tree_height_);
 	// get block number
-	__i_frame.block_number_ = fit_tree.ColorCompression(compressed_colors);
+
+	size_t blocks_number = fit_tree.ColorCompression(compressed_colors);
 
 	// index of fit colors, first is i-frame's
 	auto color_index  = compressed_colors.begin();
@@ -491,7 +496,7 @@ void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::
 			// coding mode tag
 			__p_frames[i - 1].is_independent_ = false;
 			// block number equal to i-frame's
-			__p_frames[i - 1].block_number_ = __i_frame.block_number_;
+			__p_frames[i - 1].block_number_ = blocks_number;
 			// compressed color
 			__p_frames[i - 1].colors_ = *color_index;
 			color_index++;
@@ -511,20 +516,7 @@ void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::
 			// compressed tree
 			__p_tree.TreeCompression(__p_frames[i - 1].octree_, __p_frames[i - 1].center_, __p_frames[i - 1].tree_height_);
 			// block number and compressed color
-			__p_tree.ColorCompression(__p_frames[i - 1].colors_);
-		}
-	}
-}
-
-/***
- * @description: do color compensation
- * @param {*}
- * @return {*}
- */
-void GOF::ColorCompensation() {
-	for (size_t i = 1; i < this->patches_colors_.size(); i++) {
-		for (size_t k = 0; k < this->patches_colors_[i].size(); k++) {
-			this->patches_colors_[i][k] -= this->patches_colors_[0][k];
+			__p_tree.RAHT(__p_frames[i - 1].colors_);
 		}
 	}
 }

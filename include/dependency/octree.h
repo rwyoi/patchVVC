@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 19:55:40
- * @LastEditTime: 2022-07-05 14:57:36
+ * @LastEditTime: 2022-07-09 16:28:21
  * @LastEditors: ChenRP07
  * @Description: Header of octree
  */
@@ -14,9 +14,13 @@
 #include "dependency/registration.h"
 #include "dependency/type.hpp"
 #include <cfloat>
+#include <fstream>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#define _DCT_FIX_16_
+#define _RAHT_FIX_16_
 
+#define DEFAULT_KQSTEP 10
 namespace vvs {
 namespace octree {
 	class GOF {
@@ -165,7 +169,6 @@ namespace octree {
 		void PatchColorFitting(const int kInterpolationNumber);
 
 		void Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::PFramePatch>& __p_frames);
-		void ColorCompensation();
 
 		void Output(pcl::PointCloud<pcl::PointXYZRGB>& cloud, size_t index) {
 			for (size_t i = 0; i < this->fitting_patch_.size(); i++) {
@@ -176,14 +179,16 @@ namespace octree {
 				cloud.emplace_back(p);
 			}
 		}
+
+		bool out = false;
 	};
 
 	class Octree3D {
 	  private:
 		// tree nodes
-		std::vector<std::vector<uint8_t>> tree_nodes_;
-		// tree colors for each frame
-		std::vector<std::vector<vvs::type::MacroBlock8>> tree_colors_;
+		std::vector<std::vector<vvs::type::TreeNode>> tree_nodes_;
+		// patch colors
+		std::vector<std::vector<vvs::type::ColorYUV>> colors_;
 
 		// min resolution
 		const float kMinResolution;
@@ -193,6 +198,8 @@ namespace octree {
 		size_t tree_height_;
 		// tree max resolution
 		float tree_resolution_;
+		// gof
+		size_t kGroupOfFrames;
 
 	  public:
 		/***
@@ -232,20 +239,16 @@ namespace octree {
 		 */
 		void TreeCompression(std::string& __result, pcl::PointXYZ& __center, size_t& __tree_height);
 
-		/***
-		 * @description: color compression, Y_DCs Y_AC EOB Y_AC EOB ... U_DCs U_AC EOB U_AC EOB ... V_DCs V_AC EOB V_AC EOB ...
-		 * @param {vector<string>&} __result;
-		 * @return {size_t} number of blocks
-		 */
-		size_t ColorCompression(std::vector<std::string>& __result);
+		void RAHT(std::string& __result, const int kQStep);
+
+		size_t ColorCompression(std::vector<std::string>& __result, const int kQStep = DEFAULT_KQSTEP);
+		bool   out = false;
 	};
 
 	class SingleOctree3D {
 	  private:
 		// tree nodes
-		std::vector<std::vector<uint8_t>> tree_nodes_;
-		// tree colors for each frame
-		std::vector<vvs::type::ColorRGB> tree_colors_;
+		std::vector<std::vector<vvs::type::TreeNode>> tree_nodes_;
 
 		// min resolution
 		const float kMinResolution;
@@ -293,19 +296,14 @@ namespace octree {
 		 */
 		void TreeCompression(std::string& __result, pcl::PointXYZ& __center, size_t& __tree_height);
 
-		/***
-		 * @description: color compression, Y_DCs Y_AC EOB Y_AC EOB ... U_DCs U_AC EOB U_AC EOB ... V_DCs V_AC EOB V_AC EOB ...
-		 * @param {string&} __result;
-		 * @return {size_t} number of blocks
-		 */
-		void ColorCompression(std::string& __result);
+		void RAHT(std::string& __result, const int kQStep = 10);
 	};
 
 	// octree for decoding
 	class DeOctree3D {
 	  private:
 		// tree nodes
-		std::vector<std::vector<uint8_t>> tree_nodes_;
+		std::vector<std::vector<vvs::type::TreeNode>> tree_nodes_;
 		// center for each tree nodes
 		std::vector<std::vector<pcl::PointXYZ>> tree_points_;
 
@@ -348,12 +346,16 @@ namespace octree {
 		 */
 		void SetTree(std::string& __tree);
 
+		void IRAHT(std::string& __source, size_t point_cnt, std::vector<vvs::type::ColorYUV>& __result, const int Qstep = DEFAULT_KQSTEP);
+
 		/***
 		 * @description: get patch geometry information
 		 * @param {PointCloud<PointXYZ>&} __patch
 		 * @return {*}
 		 */
-		void GetPatch(pcl::PointCloud<pcl::PointXYZ>& __patch);
+		void GetPatch(std::string& __color_source, pcl::PointCloud<pcl::PointXYZ>& __patch, std::vector<vvs::type::ColorYUV>& __color);
+
+		bool out = false;
 	};
 }  // namespace octree
 }  // namespace vvs
