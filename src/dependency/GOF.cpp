@@ -1,11 +1,13 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:06:07
- * @LastEditTime: 2022-07-09 16:25:20
+ * @LastEditTime: 2022-07-10 14:27:02
  * @LastEditors: ChenRP07
  * @Description: Implement of GroupOfFrames, including create, compression
  */
 #include "dependency/octree.h"
+// #define KMEANS
+#define KNNS
 using namespace vvs::octree;
 
 /***
@@ -293,7 +295,12 @@ void GOF::GenerateFittingPatch(const float kMSEThreshold, const float max_corren
 			}
 		}
 	}
-
+	// std::ofstream outfile("./result/MVs/Patch" + std::to_string(index) + ".dat");
+	// for (size_t i = 0; i < this->kGroupOfFrames; i++) {
+	// 	vvs::io::SaveColorPlyFile("./result/Frame" + std::to_string(i) + "/Patch" + std::to_string(index) + ".ply", this->frame_patches_[i]);
+	// 	outfile << this->motion_vectors_[i] << std::endl << std::endl;
+	// }
+#ifdef KMEANS
 	// k-means init centers
 	size_t point_count = 0, cloud_count = 0, max_index = 0, max_size = 0;
 
@@ -365,10 +372,45 @@ void GOF::GenerateFittingPatch(const float kMSEThreshold, const float max_corren
 				break;
 			}
 		}
-
-		// save the result
-		this->fitting_patch_.swap(centers);
 	}
+#endif
+#ifdef KNNS
+	size_t                                         cloud_count = 0;
+	std::vector<pcl::PointCloud<pcl::PointXYZRGB>> patches;
+	pcl::PointCloud<pcl::PointXYZRGB>              centers;
+	for (size_t i = 0; i < this->kGroupOfFrames; i++) {
+		if (!this->patch_coding_mode_[i]) {
+			patches.emplace_back(this->frame_patches_[i]);
+			cloud_count++;
+		}
+	}
+
+	if (cloud_count == 1) {
+		this->fitting_patch_.swap(this->frame_patches_[0]);
+		return;
+	}
+	std::vector<pcl::search::KdTree<pcl::PointXYZRGB>> trees(patches.size());
+
+	for (size_t i = 0; i < patches.size(); i++) {
+		trees[i].setInputCloud(patches[i].makeShared());
+	}
+
+	for (size_t i = 0; i < patches[0].size(); i++) {
+		pcl::PointXYZRGB cen = patches[0][i];
+		for (size_t j = 1; j < trees.size(); j++) {
+			std::vector<int>   idx(1);
+			std::vector<float> dis(1);
+			trees[j].nearestKSearch(patches[0][i], 1, idx, dis);
+			vvs::operation::PointAddCopy(cen, patches[j][idx[0]]);
+		}
+		vvs::operation::PointDivCopy(cen, trees.size());
+		centers.emplace_back(cen);
+	}
+#endif
+	// save the result
+	this->fitting_patch_.swap(centers);
+
+	// vvs::io::SaveColorPlyFile("./FitPatch/Patch" + std::to_string(index) + ".ply", this->fitting_patch_);
 }
 
 /***
