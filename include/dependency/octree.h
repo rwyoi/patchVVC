@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 19:55:40
- * @LastEditTime: 2022-07-09 17:09:21
+ * @LastEditTime: 2022-07-11 09:35:50
  * @LastEditors: ChenRP07
  * @Description: Header of octree
  */
@@ -20,7 +20,7 @@
 #define _DCT_FIX_16_
 #define _RAHT_FIX_16_
 
-#define DEFAULT_KQSTEP 10
+#define DEFAULT_KQSTEP 5
 namespace vvs {
 namespace octree {
 	class GOF {
@@ -168,7 +168,7 @@ namespace octree {
 		 */
 		void PatchColorFitting(const int kInterpolationNumber);
 
-		void Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::PFramePatch>& __p_frames);
+		void Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::PFramePatch>& __p_frames, size_t index);
 
 		void Output(pcl::PointCloud<pcl::PointXYZRGB>& cloud, size_t index) {
 			for (size_t i = 0; i < this->fitting_patch_.size(); i++) {
@@ -239,9 +239,9 @@ namespace octree {
 		 */
 		void TreeCompression(std::string& __result, pcl::PointXYZ& __center, size_t& __tree_height);
 
-		void RAHT(std::string& __result, const int kQStep);
+		void RAHT(std::string& __result, size_t index, const int kQStep);
 
-		size_t ColorCompression(std::vector<std::string>& __result, const int kQStep = DEFAULT_KQSTEP);
+		size_t ColorCompression(std::vector<std::string>& __result, size_t index, const int kQStep = DEFAULT_KQSTEP);
 		bool   out = false;
 	};
 
@@ -346,14 +346,14 @@ namespace octree {
 		 */
 		void SetTree(std::string& __tree);
 
-		void IRAHT(std::string& __source, size_t point_cnt, std::vector<vvs::type::ColorYUV>& __result, const int Qstep = DEFAULT_KQSTEP);
+		void IRAHT(std::string& __source, size_t point_cnt, std::vector<vvs::type::ColorYUV>& __result, size_t index, const int Qstep = DEFAULT_KQSTEP);
 
 		/***
 		 * @description: get patch geometry information
 		 * @param {PointCloud<PointXYZ>&} __patch
 		 * @return {*}
 		 */
-		void GetPatch(std::string& __color_source, pcl::PointCloud<pcl::PointXYZ>& __patch, std::vector<vvs::type::ColorYUV>& __color);
+		void GetPatch(std::string& __color_source, pcl::PointCloud<pcl::PointXYZ>& __patch, std::vector<vvs::type::ColorYUV>& __color, size_t index);
 
 		bool out = false;
 	};

@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-07-01 16:21:06
- * @LastEditTime: 2022-07-09 16:51:31
+ * @LastEditTime: 2022-07-10 15:58:40
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -303,7 +303,7 @@ void coder::Decoder::GetIFrameProc() {
 			deoctree.SetCenter(this->I_Frame_Patches_[index].center_);
 			deoctree.SetHeight(this->I_Frame_Patches_[index].tree_height_);
 			deoctree.SetTree(this->I_Frame_Patches_[index].octree_);
-			deoctree.GetPatch(this->I_Frame_Patches_[index].colors_, this->fitting_patches_[index], this->fitting_colors_[index]);
+			deoctree.GetPatch(this->I_Frame_Patches_[index].colors_, this->fitting_patches_[index], this->fitting_colors_[index], index);
 		}
 	}
 }
@@ -331,7 +331,7 @@ void coder::Decoder::GetPFrameProc() {
 				deoctree.SetCenter(this->P_Frame_Patches_[index].center_);
 				deoctree.SetHeight(this->P_Frame_Patches_[index].tree_height_);
 				deoctree.SetTree(this->P_Frame_Patches_[index].octree_);
-				deoctree.GetPatch(this->P_Frame_Patches_[index].colors_, this->single_patches_[index], this->p_colors_[index]);
+				deoctree.GetPatch(this->P_Frame_Patches_[index].colors_, this->single_patches_[index], this->p_colors_[index], index);
 			}
 		}
 	}

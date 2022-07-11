@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-07-04 11:35:23
- * @LastEditTime: 2022-07-09 16:34:34
+ * @LastEditTime: 2022-07-11 09:57:56
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -154,7 +154,7 @@ void DeOctree3D::SetTree(std::string& __tree) {
 	}
 }
 
-void DeOctree3D::IRAHT(std::string& __source, size_t point_count, std::vector<vvs::type::ColorYUV>& __result, const int kQStep) {
+void DeOctree3D::IRAHT(std::string& __source, size_t point_count, std::vector<vvs::type::ColorYUV>& __result, size_t index, const int kQStep) {
 	std::string  temp;
 	const size_t kBufferSize = ZSTD_getFrameContentSize(__source.c_str(), __source.size());
 	if (kBufferSize == 0 || kBufferSize == ZSTD_CONTENTSIZE_UNKNOWN || kBufferSize == ZSTD_CONTENTSIZE_ERROR) {
@@ -222,7 +222,10 @@ void DeOctree3D::IRAHT(std::string& __source, size_t point_count, std::vector<vv
 		cofs_index++;
 #endif
 	}
-
+	// std::ofstream outfile("./desig/Patch$" + std::to_string(index) + ".dat");
+	// for (size_t i = 0; i < coffs_y.size(); i++) {
+	// 	outfile << coffs_y[i] << " " << coffs_u[i] << " " << coffs_v[i] << std::endl;
+	// }
 	// dequantization
 	for (auto& i : coffs_y) {
 		i *= kQStep;
@@ -307,7 +310,7 @@ void DeOctree3D::IRAHT(std::string& __source, size_t point_count, std::vector<vv
  * @param {PointCloud<PointXYZ>&} __patch
  * @return {*}
  */
-void DeOctree3D::GetPatch(std::string& __color_source, pcl::PointCloud<pcl::PointXYZ>& __patch, std::vector<vvs::type::ColorYUV>& __colors) {
+void DeOctree3D::GetPatch(std::string& __color_source, pcl::PointCloud<pcl::PointXYZ>& __patch, std::vector<vvs::type::ColorYUV>& __colors, size_t index) {
 	// allocate some space
 	__patch.resize(this->tree_nodes_.back().size() * 8);
 
@@ -332,5 +335,5 @@ void DeOctree3D::GetPatch(std::string& __color_source, pcl::PointCloud<pcl::Poin
 	// delete excess space
 	__patch.resize(point_cnt);
 
-	this->IRAHT(__color_source, __patch.size(), __colors);
+	this->IRAHT(__color_source, __patch.size(), __colors, index);
 }

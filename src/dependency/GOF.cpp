@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:06:07
- * @LastEditTime: 2022-07-10 14:27:02
+ * @LastEditTime: 2022-07-10 15:59:45
  * @LastEditors: ChenRP07
  * @Description: Implement of GroupOfFrames, including create, compression
  */
@@ -510,7 +510,7 @@ void GOF::PatchColorFitting(const int kInterpolationNumber) {
  * @param {vector<PFramePatch>&} __p_frames
  * @return {*}
  */
-void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::PFramePatch>& __p_frames) {
+void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::PFramePatch>& __p_frames, size_t index) {
 	// compress fitting patch
 	vvs::octree::Octree3D fit_tree;
 
@@ -521,7 +521,7 @@ void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::
 	fit_tree.TreeCompression(__i_frame.octree_, __i_frame.center_, __i_frame.tree_height_);
 	// get block number
 
-	size_t blocks_number = fit_tree.ColorCompression(compressed_colors);
+	size_t blocks_number = fit_tree.ColorCompression(compressed_colors, index);
 
 	// index of fit colors, first is i-frame's
 	auto color_index  = compressed_colors.begin();

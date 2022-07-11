@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-30 14:33:25
- * @LastEditTime: 2022-07-09 16:47:18
+ * @LastEditTime: 2022-07-11 09:57:38
  * @LastEditors: ChenRP07
  * @Description: Implement of octree
  */
@@ -63,6 +63,17 @@ void Octree3D::SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cl
 		// add tree node recursively
 		this->AddTreeNode(__point_cloud, __point_colors, __octree_points, 0, this->tree_resolution_, this->tree_center_);
 
+		for (int i = this->tree_height_ - 2; i >= 0; i--) {
+			size_t node_index = 0;
+			for (size_t j = 0; j < this->tree_nodes_[i].size(); j++) {
+				size_t count                    = vvs::operation::NodePointCount(this->tree_nodes_[i][j].subnodes_);
+				this->tree_nodes_[i][j].weight_ = 0;
+				for (size_t k = 0; k < count; k++) {
+					this->tree_nodes_[i][j].weight_ += this->tree_nodes_[i + 1][node_index].weight_;
+					node_index++;
+				}
+			}
+		}
 		// color compensation
 		for (size_t i = 1; i < this->colors_.size(); i++) {
 			for (size_t j = 0; j < this->colors_[i].size(); j++) {
@@ -95,7 +106,7 @@ bool Octree3D::AddTreeNode(const pcl::PointCloud<pcl::PointXYZRGB>& __point_clou
 		}
 		else if (__height < this->tree_height_ - 1) {
 			// new node
-			vvs::type::TreeNode node(__node_points.size());
+			vvs::type::TreeNode node;
 			// for 8 subnodes
 			std::vector<std::vector<size_t>> __subnodes_value(8, std::vector<size_t>());
 
@@ -213,7 +224,7 @@ void Octree3D::TreeCompression(std::string& __result, pcl::PointXYZ& __center, s
  * @param {int} kQStep
  * @return {*}
  */
-void Octree3D::RAHT(std::string& __result, const int kQStep) {
+void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 	try {
 		// for each layer
 		for (int i = this->tree_height_ - 2; i >= 0; i--) {
@@ -259,12 +270,15 @@ void Octree3D::RAHT(std::string& __result, const int kQStep) {
 				for (auto& k : this->tree_nodes_[i][j].cof_y_) {
 					coff_y.emplace_back(k);
 				}
+				this->tree_nodes_[i][j].cof_y_.clear();
 				for (auto& k : this->tree_nodes_[i][j].cof_u_) {
 					coff_u.emplace_back(k);
 				}
+				this->tree_nodes_[i][j].cof_u_.clear();
 				for (auto& k : this->tree_nodes_[i][j].cof_v_) {
 					coff_v.emplace_back(k);
 				}
+				this->tree_nodes_[i][j].cof_v_.clear();
 			}
 		}
 
@@ -280,7 +294,10 @@ void Octree3D::RAHT(std::string& __result, const int kQStep) {
 		for (auto& k : coff_v) {
 			Qcoff_v.emplace_back(static_cast<int>(std::round(k / kQStep)));
 		}
-
+		// std::ofstream outfile("./sig/Patch#" + std::to_string(index) + ".dat");
+		// for (size_t i = 0; i < Qcoff_y.size(); i++) {
+		// 	outfile << Qcoff_y[i] << " " << Qcoff_u[i] << " " << Qcoff_v[i] << std::endl;
+		// }
 		std::string temp;
 
 		// first signal is 32-bit int
@@ -345,13 +362,13 @@ void Octree3D::RAHT(std::string& __result, const int kQStep) {
  * @param {vector<string>&} __result;
  * @return {size_t} number of blocks
  */
-size_t Octree3D::ColorCompression(std::vector<std::string>& __result, int kQStep) {
+size_t Octree3D::ColorCompression(std::vector<std::string>& __result, size_t index, int kQStep) {
 	try {
 		// allocate space
 		__result.resize(this->colors_.size());
 
 		// RAHT for first frame
-		this->RAHT(__result[0], kQStep);
+		this->RAHT(__result[0], index, kQStep);
 
 		size_t blocks_number = 0;
 		// for other colors
@@ -375,14 +392,7 @@ size_t Octree3D::ColorCompression(std::vector<std::string>& __result, int kQStep
 			}
 
 			std::string source;
-			if (out) {
-				std::ofstream ou("out.txt");
-				for (size_t i = 0; i < blocks.size(); i++) {
-					for (size_t j = 0; j < __coefficients_y[i].size(); j++) {
-						ou << __coefficients_y[i][j] << " " << __coefficients_u[i][j] << " " << __coefficients_v[i][j] << std::endl;
-					}
-				}
-			}
+
 			// scan the y, first DC is represented by 32-bit int
 			for (size_t j = 0; j < __coefficients_y.size(); j++) {
 				source += static_cast<char>(__coefficients_y[j][0] >> 24), source += static_cast<char>(__coefficients_y[j][0] >> 16), source += static_cast<char>(__coefficients_y[j][0] >> 8),

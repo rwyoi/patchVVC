@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-07-09 17:17:28
+ * @LastEditTime: 2022-07-10 16:08:40
  * @LastEditors: ChenRP07
  * @Description: Implement of Volumetric Video Encoder.
  */
@@ -186,7 +186,7 @@ void coder::Encoder::EncodingProc() {
 			this->point_clouds_[index].GenerateFittingPatch(this->kMSEThreshold, 200.0f, 100);
 			this->point_clouds_[index].PatchColorFitting(3);
 			// this->point_clouds_[index].Output(this->test_[index], 0);
-			this->point_clouds_[index].Compression(this->i_frame_patches_[index], this->p_frame_patches_[index]);
+			this->point_clouds_[index].Compression(this->i_frame_patches_[index], this->p_frame_patches_[index], index);
 		}
 	}
 }
@@ -215,13 +215,6 @@ void coder::Encoder::Encoding() {
 
 	for (size_t i = 0; i < this->kThreads; i++) {
 		task_threads[i].join();
-	}
-
-	std::vector<pcl::PointCloud<pcl::PointXYZRGB>> a;
-	std::vector<Eigen::Matrix4f>                   aa;
-	this->point_clouds_[3].GetPatches(a, aa);
-	for (size_t i = 0; i < a.size(); i++) {
-		vvs::io::SaveColorPlyFile(std::to_string(i) + ".ply", a[i]);
 	}
 }
 
