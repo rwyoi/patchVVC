@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-07-04 11:35:23
- * @LastEditTime: 2022-07-11 10:12:25
+ * @LastEditTime: 2022-07-11 14:47:46
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -245,6 +245,17 @@ void DeOctree3D::IRAHT(std::string& __source, size_t point_count, std::vector<vv
 		i *= kQStep;
 	}
 
+#ifdef _RAHT_RLE_
+	for (size_t i = 2; i < coffs_y.size(); i++) {
+		coffs_y[i] += coffs_y[i - 1];
+	}
+	for (size_t i = 2; i < coffs_u.size(); i++) {
+		coffs_u[i] += coffs_u[i - 1];
+	}
+	for (size_t i = 2; i < coffs_v.size(); i++) {
+		coffs_v[i] += coffs_v[i - 1];
+	}
+#endif
 	// final signal
 	this->tree_nodes_[0][0].sig_y_ = coffs_y[0];
 	this->tree_nodes_[0][0].sig_u_ = coffs_u[0];

@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-30 14:33:25
- * @LastEditTime: 2022-07-11 11:09:22
+ * @LastEditTime: 2022-07-11 16:20:18
  * @LastEditors: ChenRP07
  * @Description: Implement of octree
  */
@@ -66,12 +66,17 @@ void Octree3D::SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cl
 		for (int i = this->tree_height_ - 2; i >= 0; i--) {
 			size_t node_index = 0;
 			for (size_t j = 0; j < this->tree_nodes_[i].size(); j++) {
-				size_t count                    = vvs::operation::NodePointCount(this->tree_nodes_[i][j].subnodes_);
+				std::vector<size_t> weights(8, 0);
+				std::vector<size_t> pos;
+				vvs::operation::NodePointPosition(this->tree_nodes_[i][j].subnodes_, pos);
+				size_t count                    = pos.size();
 				this->tree_nodes_[i][j].weight_ = 0;
 				for (size_t k = 0; k < count; k++) {
 					this->tree_nodes_[i][j].weight_ += this->tree_nodes_[i + 1][node_index].weight_;
+					weights[pos[k]] = this->tree_nodes_[i + 1][node_index].weight_;
 					node_index++;
 				}
+				vvs::operation::CalculateWeights(weights, this->tree_nodes_[i][j]);
 			}
 		}
 		// color compensation
@@ -281,7 +286,60 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 				this->tree_nodes_[i][j].cof_v_.clear();
 			}
 		}
+		// std::vector<int> UQcoff_y, UQcoff_u, UQcoff_v;
+		// for (auto& k : coff_y) {
+		// 	UQcoff_y.emplace_back(static_cast<int>(std::round(k / kQStep)));
+		// }
+		// for (auto& k : coff_u) {
+		// 	UQcoff_u.emplace_back(static_cast<int>(std::round(k / kQStep)));
+		// }
+		// for (auto& k : coff_v) {
+		// 	UQcoff_v.emplace_back(static_cast<int>(std::round(k / kQStep)));
+		// }
 
+		// std::vector<size_t> weights;
+		// for (size_t i = 0; i < this->tree_height_ - 1; i++) {
+		// 	for (size_t j = 0; j < this->tree_nodes_[i].size(); j++) {
+		// 		for (auto& k : this->tree_nodes_[i][j].cof_weights_) {
+		// 			weights.emplace_back(k);
+		// 		}
+		// 	}
+		// }
+
+		// std::map<size_t, std::pair<int, int>> weight_value;
+
+		// for (size_t i = 0; i < weights.size(); i++) {
+		// 	if (!weight_value.count(weights[i])) {
+		// 		weight_value[weights[i]] = std::pair<int, int>(1, 0);
+		// 	}
+		// 	else {
+		// 		weight_value[weights[i]].first++;
+		// 	}
+		// }
+
+		// auto it = weight_value.end();
+		// it--;
+		// size_t count = 1;
+
+		// for (; it != weight_value.begin(); it--) {
+		// 	count += it->second.first;
+		// 	it->second.second = count;
+		// }
+
+		// count += weight_value.begin()->second.first;
+		// weight_value.begin()->second.second = count;
+
+		// std::vector<int> Qcoff_y(UQcoff_y.size()), Qcoff_u(UQcoff_u.size()), Qcoff_v(UQcoff_v.size());
+		// Qcoff_y[0] = UQcoff_y[0], Qcoff_u[0] = UQcoff_u[0], Qcoff_v[0] = UQcoff_v[0];
+
+		// for (size_t i = 1; i < UQcoff_y.size(); i++) {
+		// 	size_t idx   = weight_value[weights[i - 1]].second - weight_value[weights[i - 1]].first;
+		// 	Qcoff_y[idx] = UQcoff_y[i];
+		// 	Qcoff_u[idx] = UQcoff_u[i];
+		// 	Qcoff_v[idx] = UQcoff_v[i];
+		// 	weight_value[weights[i - 1]].first--;
+		// }
+		
 		// quantization
 		std::vector<int> Qcoff_y, Qcoff_u, Qcoff_v;
 
@@ -294,6 +352,20 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 		for (auto& k : coff_v) {
 			Qcoff_v.emplace_back(static_cast<int>(std::round(k / kQStep)));
 		}
+
+		// RLE
+#ifdef _RAHT_RLE_
+		for (size_t i = 2; i < Qcoff_y.size(); i++) {
+			Qcoff_y[i] -= Qcoff_y[i - 1];
+		}
+		for (size_t i = 2; i < Qcoff_u.size(); i++) {
+			Qcoff_u[i] -= Qcoff_u[i - 1];
+		}
+		for (size_t i = 2; i < Qcoff_v.size(); i++) {
+			Qcoff_v[i] -= Qcoff_v[i - 1];
+		}
+#endif
+
 		// std::ofstream outfile("./sig/Patch#" + std::to_string(index) + ".dat");
 		// for (size_t i = 0; i < Qcoff_y.size(); i++) {
 		// 	outfile << Qcoff_y[i] << " " << Qcoff_u[i] << " " << Qcoff_v[i] << std::endl;
@@ -364,15 +436,6 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
  */
 void Octree3D::ColorCompression(std::vector<std::string>& __result, size_t index, int kQStep) {
 	try {
-		std::ofstream out1("./sig/Patch$" + std::to_string(index) + ".dat"), out2("./desig/Patch$" + std::to_string(index) + ".dat");
-
-		for (size_t i = 0; i < this->colors_[0].size(); i++) {
-			out1 << this->colors_[0][i].y_ << " " << this->colors_[0][i].u_ << " " << this->colors_[0][i].v_ << std::endl;
-		}
-
-		for (size_t i = 0; i < this->colors_.back().size(); i++) {
-			out2 << this->colors_.back()[i].y_ << " " << this->colors_.back()[i].u_ << " " << this->colors_.back()[i].v_ << std::endl;
-		}
 		// allocate space
 		__result.resize(this->colors_.size());
 

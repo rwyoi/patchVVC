@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 19:55:40
- * @LastEditTime: 2022-07-11 10:31:46
+ * @LastEditTime: 2022-07-11 16:17:33
  * @LastEditors: ChenRP07
  * @Description: Header of octree
  */
@@ -18,10 +18,10 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #define _DCT_FIX_16_
-#define _RAHT_FIX_16_
-
+#define _RAHT_FIX_8_
+// #define _RAHT_RLE_
 #define DEFAULT_KQSTEP 10
-#define DEFAULT_PKQSTEP 20
+#define DEFAULT_PKQSTEP 30
 namespace vvs {
 namespace octree {
 	class GOF {

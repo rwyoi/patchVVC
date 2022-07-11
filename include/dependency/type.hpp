@@ -244,6 +244,8 @@ namespace type {
 		// weight, how many points in this node
 		size_t weight_;
 
+		std::vector<size_t> cof_weights_;
+
 		/***
 		 * @description: default constructor
 		 * @param {*}
@@ -901,6 +903,29 @@ namespace operation {
 				gvs[i] = resultv(0), gvs[i + 4] = resultv(1);
 
 				cof_index++;
+			}
+		}
+	}
+
+	inline void CalculateWeights(std::vector<size_t>& weights, vvs::type::TreeNode& node) {
+		node.cof_weights_.clear();
+		size_t zweight0 = weights[0] + weights[2] + weights[4] + weights[6], zweight1 = weights[1] + weights[3] + weights[5] + weights[7];
+		if (zweight0 != 0 && zweight1 != 0) {
+			node.cof_weights_.emplace_back(zweight0 + zweight1);
+		}
+
+		size_t yweight0 = weights[0] + weights[4], yweight1 = weights[1] + weights[5], yweight2 = weights[2] + weights[6], yweight3 = weights[3] + weights[7];
+
+		if (yweight0 != 0 && yweight2 != 0) {
+			node.cof_weights_.emplace_back(yweight0 + yweight2);
+		}
+		if (yweight1 != 0 && yweight3 != 0) {
+			node.cof_weights_.emplace_back(yweight1 + yweight3);
+		}
+
+		for (size_t i = 0; i < 4; i++) {
+			if (weights[i] != 0 && weights[i + 4] != 0) {
+				node.cof_weights_.emplace_back(weights[i] + weights[i + 4]);
 			}
 		}
 	}
