@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-30 14:33:25
- * @LastEditTime: 2022-07-11 09:57:38
+ * @LastEditTime: 2022-07-11 11:09:22
  * @LastEditors: ChenRP07
  * @Description: Implement of octree
  */
@@ -362,153 +362,32 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
  * @param {vector<string>&} __result;
  * @return {size_t} number of blocks
  */
-size_t Octree3D::ColorCompression(std::vector<std::string>& __result, size_t index, int kQStep) {
+void Octree3D::ColorCompression(std::vector<std::string>& __result, size_t index, int kQStep) {
 	try {
+		std::ofstream out1("./sig/Patch$" + std::to_string(index) + ".dat"), out2("./desig/Patch$" + std::to_string(index) + ".dat");
+
+		for (size_t i = 0; i < this->colors_[0].size(); i++) {
+			out1 << this->colors_[0][i].y_ << " " << this->colors_[0][i].u_ << " " << this->colors_[0][i].v_ << std::endl;
+		}
+
+		for (size_t i = 0; i < this->colors_.back().size(); i++) {
+			out2 << this->colors_.back()[i].y_ << " " << this->colors_.back()[i].u_ << " " << this->colors_.back()[i].v_ << std::endl;
+		}
 		// allocate space
 		__result.resize(this->colors_.size());
 
-		// RAHT for first frame
-		this->RAHT(__result[0], index, kQStep);
-
-		size_t blocks_number = 0;
-		// for other colors
-		for (size_t i = 1; i < this->colors_.size(); i++) {
-			std::vector<vvs::type::MacroBlock8> blocks(1, vvs::type::MacroBlock8());
-
-			for (size_t j = 0; j < this->colors_[i].size(); j++) {
-				if (blocks.back().full()) {
-					blocks.emplace_back();
-				}
-				blocks.back().PushBack(this->colors_[i][j]);
+		for (size_t i = 0; i < colors_.size(); i++) {
+			for (size_t j = 0; j < this->tree_nodes_.back().size(); j++) {
+				this->tree_nodes_.back()[j].SetSignal(this->colors_[i][j]);
 			}
 
-			blocks.back().Fill();
-
-			blocks_number = blocks.size();
-			std::vector<std::vector<int>> __coefficients_y(blocks.size()), __coefficients_u(blocks.size()), __coefficients_v(blocks.size());
-			// DCT quantization and zigzag-scan for each block.
-			for (size_t j = 0; j < blocks.size(); j++) {
-				blocks[j].YUVDCT3(__coefficients_y[j], __coefficients_u[j], __coefficients_v[j]);
+			if (i == 0) {
+				this->RAHT(__result[i], index, DEFAULT_KQSTEP);
 			}
-
-			std::string source;
-
-			// scan the y, first DC is represented by 32-bit int
-			for (size_t j = 0; j < __coefficients_y.size(); j++) {
-				source += static_cast<char>(__coefficients_y[j][0] >> 24), source += static_cast<char>(__coefficients_y[j][0] >> 16), source += static_cast<char>(__coefficients_y[j][0] >> 8),
-				    source += static_cast<char>(__coefficients_y[j][0]);
+			else {
+				this->RAHT(__result[i], index, DEFAULT_PKQSTEP);
 			}
-
-			// ACs are represented by 16-bit int
-			for (size_t j = 0; j < __coefficients_y.size(); j++) {
-				// behind count, all ACs are 0;
-				size_t count = 0;
-				for (size_t k = 511; k >= 1; k--) {
-					if (__coefficients_y[j][k] != 0) {
-						count = k;
-						break;
-					}
-				}
-				for (size_t k = 1; k <= count; k++) {
-#ifdef _DCT_FIX_16_
-					source += vvs::operation::Int2CharH(__coefficients_y[j][k]);
-					source += vvs::operation::Int2CharL(__coefficients_y[j][k]);
-#endif
-#ifdef _DCT_FIX_8_
-					source += vvs::operation::Int2Char(__coefficients_y[j][k]);
-#endif
-				}
-#ifdef _DCT_FIX_16_
-				source += static_cast<char>(0x80), source += static_cast<char>(0x00);
-#endif
-#ifdef _DCT_FIX_8_
-				source += static_cast<char>(-128);
-#endif
-			}
-
-			// scan the y, first DC is represented by 32-bit int
-			for (size_t j = 0; j < __coefficients_u.size(); j++) {
-				source += static_cast<char>(__coefficients_u[j][0] >> 24), source += static_cast<char>(__coefficients_u[j][0] >> 16), source += static_cast<char>(__coefficients_u[j][0] >> 8),
-				    source += static_cast<char>(__coefficients_u[j][0]);
-			}
-
-			// ACs are represented by 16-bit int
-			for (size_t j = 0; j < __coefficients_u.size(); j++) {
-				// behind count, all ACs are 0;
-				size_t count = 0;
-				for (size_t k = 511; k >= 1; k--) {
-					if (__coefficients_u[j][k] != 0) {
-						count = k;
-						break;
-					}
-				}
-				for (size_t k = 1; k <= count; k++) {
-#ifdef _DCT_FIX_16_
-					source += vvs::operation::Int2CharH(__coefficients_u[j][k]);
-					source += vvs::operation::Int2CharL(__coefficients_u[j][k]);
-#endif
-#ifdef _DCT_FIX_8_
-					source += vvs::operation::Int2Char(__coefficients_u[j][k]);
-#endif
-				}
-#ifdef _DCT_FIX_16_
-				source += static_cast<char>(0x80), source += static_cast<char>(0x00);
-#endif
-#ifdef _DCT_FIX_8_
-				source += static_cast<char>(-128);
-#endif
-			}
-
-			// scan the y, first DC is represented by 32-bit int
-			for (size_t j = 0; j < __coefficients_v.size(); j++) {
-				source += static_cast<char>(__coefficients_v[j][0] >> 24), source += static_cast<char>(__coefficients_v[j][0] >> 16), source += static_cast<char>(__coefficients_v[j][0] >> 8),
-				    source += static_cast<char>(__coefficients_v[j][0]);
-			}
-
-			// ACs are represented by 16-bit int
-			for (size_t j = 0; j < __coefficients_v.size(); j++) {
-				// behind count, all ACs are 0;
-				size_t count = 0;
-				for (size_t k = 511; k >= 1; k--) {
-					if (__coefficients_v[j][k] != 0) {
-						count = k;
-						break;
-					}
-				}
-				for (size_t k = 1; k <= count; k++) {
-#ifdef _DCT_FIX_16_
-					source += vvs::operation::Int2CharH(__coefficients_v[j][k]);
-					source += vvs::operation::Int2CharL(__coefficients_v[j][k]);
-#endif
-#ifdef _DCT_FIX_8_
-					source += vvs::operation::Int2Char(__coefficients_v[j][k]);
-#endif
-				}
-#ifdef _DCT_FIX_16_
-				source += static_cast<char>(0x80), source += static_cast<char>(0x00);
-#endif
-#ifdef _DCT_FIX_8_
-				source += static_cast<char>(-128);
-#endif
-			}
-
-			// compress
-			// malloc some space
-			const size_t kBufferSize = ZSTD_compressBound(source.size());
-			__result[i].resize(kBufferSize);
-
-			// compression
-			const size_t kCompressedSize = ZSTD_compress(const_cast<char*>(__result[i].c_str()), kBufferSize, source.c_str(), source.size(), ZSTD_maxCLevel());
-
-			// if error?
-			const size_t __error_code = ZSTD_isError(kCompressedSize);
-			if (__error_code != 0) {
-				throw "Wrong compressed string size.";
-			}
-			__result[i].resize(kCompressedSize);
 		}
-
-		return blocks_number;
 	}
 	catch (const char* error_message) {
 		std::cerr << "Fatal error in Octree ColorCompression : " << error_message << std::endl;

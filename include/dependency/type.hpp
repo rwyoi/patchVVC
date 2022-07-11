@@ -88,8 +88,6 @@ namespace type {
 		size_t        tree_height_;
 		// compressed colors
 		std::string colors_;
-		// block number
-		size_t block_number_;
 		// motion vector
 		Eigen::Matrix4f motion_vector_;
 

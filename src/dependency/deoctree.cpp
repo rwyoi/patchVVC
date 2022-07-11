@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-07-04 11:35:23
- * @LastEditTime: 2022-07-11 09:57:56
+ * @LastEditTime: 2022-07-11 10:12:25
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -176,6 +176,14 @@ void DeOctree3D::IRAHT(std::string& __source, size_t point_count, std::vector<vv
 	// free excess space
 	temp.resize(kDecompressedSize);
 
+	// clear
+	for (size_t i = 0; i < this->tree_nodes_.size(); i++) {
+		for (size_t j = 0; j < this->tree_nodes_[i].size(); j++) {
+			this->tree_nodes_[i][j].cof_y_.clear();
+			this->tree_nodes_[i][j].cof_u_.clear();
+			this->tree_nodes_[i][j].cof_v_.clear();
+		}
+	}
 	std::vector<float> coffs_y, coffs_u, coffs_v;
 
 	// scan coffs

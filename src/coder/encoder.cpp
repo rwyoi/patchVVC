@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-07-10 16:08:40
+ * @LastEditTime: 2022-07-11 11:09:41
  * @LastEditors: ChenRP07
  * @Description: Implement of Volumetric Video Encoder.
  */
@@ -184,7 +184,7 @@ void coder::Encoder::EncodingProc() {
 				this->point_clouds_[index].out = true;
 			}
 			this->point_clouds_[index].GenerateFittingPatch(this->kMSEThreshold, 200.0f, 100);
-			this->point_clouds_[index].PatchColorFitting(3);
+			this->point_clouds_[index].PatchColorFitting(5);
 			// this->point_clouds_[index].Output(this->test_[index], 0);
 			this->point_clouds_[index].Compression(this->i_frame_patches_[index], this->p_frame_patches_[index], index);
 		}
@@ -368,11 +368,6 @@ void coder::Encoder::OutputPFrame(const std::string& __p_frame_name) {
 					fwrite(&data_size, sizeof(size_t), 1, fp);
 					fwrite(this->p_frame_patches_[j][i].octree_.c_str(), sizeof(char), this->p_frame_patches_[j][i].octree_.size(), fp);
 				}
-
-				if (!this->p_frame_patches_[j][i].is_independent_) {
-					fwrite(&(this->p_frame_patches_[j][i].block_number_), sizeof(size_t), 1, fp);
-				}
-
 				data_size = this->p_frame_patches_[j][i].colors_.size();
 				fwrite(&data_size, sizeof(size_t), 1, fp);
 				fwrite(this->p_frame_patches_[j][i].colors_.c_str(), sizeof(char), this->p_frame_patches_[j][i].colors_.size(), fp);

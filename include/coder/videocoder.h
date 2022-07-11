@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:13:32
- * @LastEditTime: 2022-07-09 15:37:34
+ * @LastEditTime: 2022-07-11 10:21:33
  * @LastEditors: ChenRP07
  * @Description: Header of Volumetric Video Encoder
  */
@@ -113,6 +113,8 @@ namespace coder {
 		std::vector<pcl::PointCloud<pcl::PointXYZ>>   single_patches_;
 		std::vector<std::vector<vvs::type::ColorYUV>> p_colors_;
 
+		std::vector<vvs::octree::DeOctree3D> decode_trees_;
+
 		std::queue<size_t> task_pool_;
 		std::mutex         task_mutex_;
 
@@ -124,7 +126,6 @@ namespace coder {
 
 		const size_t kThreads;
 
-		void GetColorProc(size_t index);
 		void GetIFrameProc();
 		void GetPFrameProc();
 

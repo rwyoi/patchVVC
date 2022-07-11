@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 19:55:40
- * @LastEditTime: 2022-07-11 09:35:50
+ * @LastEditTime: 2022-07-11 10:31:46
  * @LastEditors: ChenRP07
  * @Description: Header of octree
  */
@@ -20,7 +20,8 @@
 #define _DCT_FIX_16_
 #define _RAHT_FIX_16_
 
-#define DEFAULT_KQSTEP 5
+#define DEFAULT_KQSTEP 10
+#define DEFAULT_PKQSTEP 20
 namespace vvs {
 namespace octree {
 	class GOF {
@@ -241,8 +242,8 @@ namespace octree {
 
 		void RAHT(std::string& __result, size_t index, const int kQStep);
 
-		size_t ColorCompression(std::vector<std::string>& __result, size_t index, const int kQStep = DEFAULT_KQSTEP);
-		bool   out = false;
+		void ColorCompression(std::vector<std::string>& __result, size_t index, const int kQStep = DEFAULT_KQSTEP);
+		bool out = false;
 	};
 
 	class SingleOctree3D {
@@ -308,7 +309,7 @@ namespace octree {
 		std::vector<std::vector<pcl::PointXYZ>> tree_points_;
 
 		// minimal resolution
-		const float kMinResolution;
+		float kMinResolution;
 
 		// center for whole tree
 		pcl::PointXYZ tree_center_;
@@ -323,7 +324,7 @@ namespace octree {
 		 * @param {float} __min_res
 		 * @return {*}
 		 */
-		DeOctree3D(const float __min_res);
+		DeOctree3D(const float __min_res = 2.0f);
 
 		/***
 		 * @description: set tree center

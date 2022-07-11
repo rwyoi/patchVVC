@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-07-01 16:21:06
- * @LastEditTime: 2022-07-10 15:58:40
+ * @LastEditTime: 2022-07-11 10:25:09
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -154,11 +154,6 @@ void coder::Decoder::AddPFrame(const std::string& __p_frame_name) {
 				}
 			}
 
-			if (!this->P_Frame_Patches_[i].is_independent_) {
-				// read color block numbers
-				fread(&(this->P_Frame_Patches_[i].block_number_), sizeof(size_t), 1, fp);
-			}
-
 			// read colors
 			fread(&data_size, sizeof(size_t), 1, fp);
 			this->P_Frame_Patches_[i].colors_.resize(data_size);
@@ -194,6 +189,9 @@ void coder::Decoder::GetIFrame(pcl::PointCloud<pcl::PointXYZRGB>& __i_frame) {
 	this->fitting_patches_.clear(), this->fitting_colors_.clear();
 	this->fitting_patches_.resize(this->kPatchNumber);
 	this->fitting_colors_.resize(this->kPatchNumber);
+
+	this->decode_trees_.resize(this->kPatchNumber, vvs::octree::DeOctree3D(this->kMinResolution));
+
 	std::vector<pcl::PointCloud<pcl::PointXYZRGB>> IPatches(this->kPatchNumber);
 	std::thread                                    task_threads[this->kThreads];
 	for (auto& i : task_threads) {
@@ -296,14 +294,11 @@ void coder::Decoder::GetIFrameProc() {
 			return;
 		}
 		else {
-			vvs::octree::DeOctree3D deoctree(this->kMinResolution);
-			if (index == 8) {
-				deoctree.out = true;
-			}
-			deoctree.SetCenter(this->I_Frame_Patches_[index].center_);
-			deoctree.SetHeight(this->I_Frame_Patches_[index].tree_height_);
-			deoctree.SetTree(this->I_Frame_Patches_[index].octree_);
-			deoctree.GetPatch(this->I_Frame_Patches_[index].colors_, this->fitting_patches_[index], this->fitting_colors_[index], index);
+			// vvs::octree::DeOctree3D deoctree(this->kMinResolution);
+			decode_trees_[index].SetCenter(this->I_Frame_Patches_[index].center_);
+			decode_trees_[index].SetHeight(this->I_Frame_Patches_[index].tree_height_);
+			decode_trees_[index].SetTree(this->I_Frame_Patches_[index].octree_);
+			decode_trees_[index].GetPatch(this->I_Frame_Patches_[index].colors_, this->fitting_patches_[index], this->fitting_colors_[index], index);
 		}
 	}
 }
@@ -324,7 +319,10 @@ void coder::Decoder::GetPFrameProc() {
 		}
 		else {
 			if (!this->P_Frame_Patches_[index].is_independent_) {
-				GetColorProc(index);
+				this->decode_trees_[index].IRAHT(this->P_Frame_Patches_[index].colors_, this->fitting_patches_[index].size(), this->p_colors_[index], index);
+				for (size_t i = 0; i < this->p_colors_[index].size(); i++) {
+					this->p_colors_[index][i] += this->fitting_colors_[index][i];
+				}
 			}
 			else {
 				vvs::octree::DeOctree3D deoctree(this->kMinResolution);
@@ -334,153 +332,6 @@ void coder::Decoder::GetPFrameProc() {
 				deoctree.GetPatch(this->P_Frame_Patches_[index].colors_, this->single_patches_[index], this->p_colors_[index], index);
 			}
 		}
-	}
-}
-
-void coder::Decoder::GetColorProc(size_t index) {
-	try {
-		std::string  coffecients;
-		size_t       blocks;
-		const size_t kBufferSize = ZSTD_getFrameContentSize(this->P_Frame_Patches_[index].colors_.c_str(), this->P_Frame_Patches_[index].colors_.size());
-
-		if (kBufferSize == 0 || kBufferSize == ZSTD_CONTENTSIZE_UNKNOWN || kBufferSize == ZSTD_CONTENTSIZE_ERROR) {
-			throw "Wrong buffer size.";
-		}
-
-		coffecients.resize(kBufferSize);
-
-		// decompression
-		const size_t kDecompressedSize =
-		    ZSTD_decompress(const_cast<char*>(coffecients.c_str()), kBufferSize, this->P_Frame_Patches_[index].colors_.c_str(), this->P_Frame_Patches_[index].colors_.size());
-
-		// if error?
-		const size_t __error_code = ZSTD_isError(kDecompressedSize);
-		if (__error_code != 0) {
-			throw "Wrong decompressed string size.";
-		}
-
-		// free excess space
-		coffecients.resize(kDecompressedSize);
-		blocks = this->P_Frame_Patches_[index].block_number_;
-
-		std::vector<std::vector<int>> coff_y(blocks, std::vector<int>(512, 0));
-		std::vector<std::vector<int>> coff_u(blocks, std::vector<int>(512, 0));
-		std::vector<std::vector<int>> coff_v(blocks, std::vector<int>(512, 0));
-
-		std::vector<vvs::type::MacroBlock8> color_blocks(blocks);
-
-		size_t coff_index = 0;
-		for (size_t i = 0; i < blocks; i++) {
-			coff_y[i][0] = vvs::operation::Char2Int4(coffecients[coff_index], coffecients[coff_index + 1], coffecients[coff_index + 2], coffecients[coff_index + 3]);
-			coff_index += 4;
-		}
-		for (size_t i = 0; i < blocks; i++) {
-			for (size_t j = 1; j < 512; j++) {
-#ifdef _DCT_FIX_16_
-				int number = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
-				coff_index += 2;
-				if (number != -32768) {
-					coff_y[i][j] = number;
-				}
-				else {
-					break;
-				}
-#endif
-#ifdef _DCT_FIX_8_
-				int number = static_cast<char>(coffecients[coff_index]);
-				coff_index++;
-				if (num != -128) {
-					coff_y[i][j] = number;
-				}
-				else {
-					break;
-				}
-#endif
-			}
-		}
-
-		for (size_t i = 0; i < blocks; i++) {
-			coff_u[i][0] = vvs::operation::Char2Int4(coffecients[coff_index], coffecients[coff_index + 1], coffecients[coff_index + 2], coffecients[coff_index + 3]);
-			coff_index += 4;
-		}
-		for (size_t i = 0; i < blocks; i++) {
-			for (size_t j = 1; j < 512; j++) {
-#ifdef _DCT_FIX_16_
-				int number = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
-				coff_index += 2;
-				if (number != -32768) {
-					coff_u[i][j] = number;
-				}
-				else {
-					break;
-				}
-#endif
-#ifdef _DCT_FIX_8_
-				int number = static_cast<char>(coffecients[coff_index]);
-				coff_index++;
-				if (num != -128) {
-					coff_u[i][j] = number;
-				}
-				else {
-					break;
-				}
-#endif
-			}
-		}
-
-		for (size_t i = 0; i < blocks; i++) {
-			coff_v[i][0] = vvs::operation::Char2Int4(coffecients[coff_index], coffecients[coff_index + 1], coffecients[coff_index + 2], coffecients[coff_index + 3]);
-			coff_index += 4;
-		}
-		for (size_t i = 0; i < blocks; i++) {
-			for (size_t j = 1; j < 512; j++) {
-#ifdef _DCT_FIX_16_
-				int number = vvs::operation::Char2Int(coffecients[coff_index], coffecients[coff_index + 1]);
-				coff_index += 2;
-				if (number != -32768) {
-					coff_v[i][j] = number;
-				}
-				else {
-					break;
-				}
-#endif
-#ifdef _DCT_FIX_8_
-				int number = static_cast<char>(coffecients[coff_index]);
-				coff_index++;
-				if (num != -128) {
-					coff_v[i][j] = number;
-				}
-				else {
-					break;
-				}
-#endif
-			}
-		}
-
-		for (size_t i = 0; i < blocks; i++) {
-			color_blocks[i].YUVIDCT3(coff_y[i], coff_u[i], coff_v[i]);
-		}
-
-		if (index == 8) {
-			std::ofstream ou("res.txt");
-			for (size_t i = 0; i < coff_y.size(); i++) {
-				for (size_t j = 0; j < coff_y[i].size(); j++) {
-					ou << coff_y[i][j] << " " << coff_u[i][j] << " " << coff_v[i][j] << std::endl;
-				}
-			}
-		}
-		for (size_t i = 0; i < blocks; i++) {
-			for (size_t j = 0; j < 512; j++) {
-				this->p_colors_[index].emplace_back(color_blocks[i].points_[j]);
-			}
-		}
-		for (size_t i = 0; i < this->p_colors_[index].size(); i++) {
-			this->p_colors_[index][i] += this->fitting_colors_[index][i];
-		}
-	}
-	catch (const char* error_message) {
-		std::cerr << "Fatal error in Zstd compression : " << error_message << std::endl;
-		std::exit(1);
 	}
 }
 
