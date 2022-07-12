@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-07-01 16:21:06
- * @LastEditTime: 2022-07-11 10:25:09
+ * @LastEditTime: 2022-07-12 11:01:09
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -214,7 +214,6 @@ void coder::Decoder::GetIFrame(pcl::PointCloud<pcl::PointXYZRGB>& __i_frame) {
 			IPatches[i].emplace_back(point);
 		}
 	}
-
 	for (auto& i : IPatches) {
 		for (auto& j : i) {
 			__i_frame.emplace_back(j);
@@ -319,7 +318,7 @@ void coder::Decoder::GetPFrameProc() {
 		}
 		else {
 			if (!this->P_Frame_Patches_[index].is_independent_) {
-				this->decode_trees_[index].IRAHT(this->P_Frame_Patches_[index].colors_, this->fitting_patches_[index].size(), this->p_colors_[index], index);
+				this->decode_trees_[index].IRAHT(this->P_Frame_Patches_[index].colors_, this->fitting_patches_[index].size(), this->p_colors_[index], index, DEFAULT_PKQSTEP);
 				for (size_t i = 0; i < this->p_colors_[index].size(); i++) {
 					this->p_colors_[index][i] += this->fitting_colors_[index][i];
 				}

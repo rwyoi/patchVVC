@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:06:07
- * @LastEditTime: 2022-07-11 10:58:49
+ * @LastEditTime: 2022-07-12 11:25:29
  * @LastEditors: ChenRP07
  * @Description: Implement of GroupOfFrames, including create, compression
  */
@@ -42,13 +42,7 @@ GOF::GOF(const size_t group_of_frames)
  */
 size_t GOF::size() const {
 	try {
-		if (this->frame_number_ > 0 && this->frame_number_ <= this->kGroupOfFrames) {
-			return this->frame_number_;
-		}
-		else {
-			printf("%lu\n", this->frame_number_);
-			throw "Illegal frame number.";
-		}
+		return this->fitting_patch_.size();
 	}
 	catch (const char* error_message) {
 		std::cerr << "GOF is broken : " << error_message << std::endl;
@@ -287,11 +281,13 @@ void GOF::GenerateFittingPatch(const float kMSEThreshold, const float max_corren
 			this->patches_mses_[i]      = FLT_MAX;
 		}
 		else {
-			this->patches_mses_[i]   = nicp.GetMSE();
-			this->motion_vectors_[i] = nicp.GetMotionVector() * this->motion_vectors_[i];
-			nicp.GetResultPointCloudSwap(this->frame_patches_[i]);
+			this->patches_mses_[i] = nicp.GetMSE();
 			if (this->patches_mses_[i] >= kMSEThreshold) {
 				this->patch_coding_mode_[i] = 1;
+			}
+			else {
+				this->motion_vectors_[i] = nicp.GetMotionVector() * this->motion_vectors_[i];
+				nicp.GetResultPointCloudSwap(this->frame_patches_[i]);
 			}
 		}
 	}
@@ -326,9 +322,9 @@ void GOF::GenerateFittingPatch(const float kMSEThreshold, const float max_corren
 	}
 	else {
 		// centers size is mean size of point clouds
-		size_t center_size = max_size;
+		size_t center_size = this->frame_patches_[0].size();
 		// use the biggest cloud to be the init centers
-		for (auto& k : this->frame_patches_[max_index]) {
+		for (auto& k : this->frame_patches_[0]) {
 			centers.emplace_back(k);
 		}
 
@@ -386,7 +382,7 @@ void GOF::GenerateFittingPatch(const float kMSEThreshold, const float max_corren
 	}
 
 	if (cloud_count == 1) {
-		this->fitting_patch_.swap(this->frame_patches_[0]);
+		this->fitting_patch_ = this->frame_patches_[0];
 		return;
 	}
 	std::vector<pcl::search::KdTree<pcl::PointXYZRGB>> trees(patches.size());
@@ -409,8 +405,6 @@ void GOF::GenerateFittingPatch(const float kMSEThreshold, const float max_corren
 #endif
 	// save the result
 	this->fitting_patch_.swap(centers);
-
-	// vvs::io::SaveColorPlyFile("./FitPatch/Patch" + std::to_string(index) + ".ply", this->fitting_patch_);
 }
 
 /***
@@ -527,6 +521,7 @@ void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::
 	auto color_index  = compressed_colors.begin();
 	__i_frame.colors_ = *color_index;
 	color_index++;
+	__i_frame.size = fit_tree.size();
 
 	// for each p-frame
 	for (size_t i = 1; i < this->kGroupOfFrames; i++) {

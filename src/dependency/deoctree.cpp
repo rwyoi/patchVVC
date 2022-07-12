@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-07-04 11:35:23
- * @LastEditTime: 2022-07-11 14:47:46
+ * @LastEditTime: 2022-07-12 10:23:29
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -198,8 +198,18 @@ void DeOctree3D::IRAHT(std::string& __source, size_t point_count, std::vector<vv
 		cofs_index += 2;
 #endif
 #ifdef _RAHT_FIX_8_
-		coffs_y.emplace_back(static_cast<float>(temp[cofs_index]));
-		cofs_index++;
+		if (temp[cofs_index] == static_cast<char>(0x80)) {
+			int count = vvs::operation::Char2Int(temp[cofs_index + 1], temp[cofs_index + 2]);
+			for (int k = 0; k < count; k++) {
+				coffs_y.emplace_back(0.0f);
+			}
+			j += (count - 1);
+			cofs_index += 3;
+		}
+		else {
+			coffs_y.emplace_back(static_cast<float>(temp[cofs_index]));
+			cofs_index++;
+		}
 #endif
 	}
 
@@ -212,8 +222,18 @@ void DeOctree3D::IRAHT(std::string& __source, size_t point_count, std::vector<vv
 		cofs_index += 2;
 #endif
 #ifdef _RAHT_FIX_8_
-		coffs_u.emplace_back(static_cast<float>(temp[cofs_index]));
-		cofs_index++;
+		if (temp[cofs_index] == static_cast<char>(0x80)) {
+			int count = vvs::operation::Char2Int(temp[cofs_index + 1], temp[cofs_index + 2]);
+			for (int k = 0; k < count; k++) {
+				coffs_u.emplace_back(0.0f);
+			}
+			j += (count - 1);
+			cofs_index += 3;
+		}
+		else {
+			coffs_u.emplace_back(static_cast<float>(temp[cofs_index]));
+			cofs_index++;
+		}
 #endif
 	}
 
@@ -226,8 +246,18 @@ void DeOctree3D::IRAHT(std::string& __source, size_t point_count, std::vector<vv
 		cofs_index += 2;
 #endif
 #ifdef _RAHT_FIX_8_
-		coffs_v.emplace_back(static_cast<float>(temp[cofs_index]));
-		cofs_index++;
+		if (temp[cofs_index] == static_cast<char>(0x80)) {
+			int count = vvs::operation::Char2Int(temp[cofs_index + 1], temp[cofs_index + 2]);
+			for (int k = 0; k < count; k++) {
+				coffs_v.emplace_back(0.0f);
+			}
+			j += (count - 1);
+			cofs_index += 3;
+		}
+		else {
+			coffs_v.emplace_back(static_cast<float>(temp[cofs_index]));
+			cofs_index++;
+		}
 #endif
 	}
 	// std::ofstream outfile("./desig/Patch$" + std::to_string(index) + ".dat");
@@ -245,17 +275,6 @@ void DeOctree3D::IRAHT(std::string& __source, size_t point_count, std::vector<vv
 		i *= kQStep;
 	}
 
-#ifdef _RAHT_RLE_
-	for (size_t i = 2; i < coffs_y.size(); i++) {
-		coffs_y[i] += coffs_y[i - 1];
-	}
-	for (size_t i = 2; i < coffs_u.size(); i++) {
-		coffs_u[i] += coffs_u[i - 1];
-	}
-	for (size_t i = 2; i < coffs_v.size(); i++) {
-		coffs_v[i] += coffs_v[i - 1];
-	}
-#endif
 	// final signal
 	this->tree_nodes_[0][0].sig_y_ = coffs_y[0];
 	this->tree_nodes_[0][0].sig_u_ = coffs_u[0];

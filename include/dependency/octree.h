@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 19:55:40
- * @LastEditTime: 2022-07-11 16:17:33
+ * @LastEditTime: 2022-07-12 11:15:19
  * @LastEditors: ChenRP07
  * @Description: Header of octree
  */
@@ -20,6 +20,7 @@
 #define _DCT_FIX_16_
 #define _RAHT_FIX_8_
 // #define _RAHT_RLE_
+#define _RAHT_SUBBANDS_
 #define DEFAULT_KQSTEP 10
 #define DEFAULT_PKQSTEP 30
 namespace vvs {
@@ -242,8 +243,11 @@ namespace octree {
 
 		void RAHT(std::string& __result, size_t index, const int kQStep);
 
-		void ColorCompression(std::vector<std::string>& __result, size_t index, const int kQStep = DEFAULT_KQSTEP);
-		bool out = false;
+		void   ColorCompression(std::vector<std::string>& __result, size_t index, const int kQStep = DEFAULT_KQSTEP);
+		bool   out = false;
+		size_t size() {
+			return this->colors_[0].size();
+		}
 	};
 
 	class SingleOctree3D {
@@ -297,7 +301,7 @@ namespace octree {
 		 */
 		void TreeCompression(std::string& __result, pcl::PointXYZ& __center, size_t& __tree_height);
 
-		void RAHT(std::string& __result, const int kQStep = 10);
+		void RAHT(std::string& __result, const int kQStep = DEFAULT_KQSTEP);
 	};
 
 	// octree for decoding

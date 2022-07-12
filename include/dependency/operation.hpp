@@ -715,6 +715,63 @@ namespace operation {
 		result |= (0x000000ff & c3);
 		return result;
 	}
+
+	/***
+	 * @description: scale x to y
+	 * @param {*}
+	 * @return {*}
+	 */
+	inline Eigen::Vector3f PointCloudScale(pcl::PointCloud<pcl::PointXYZRGB>& __x, pcl::PointCloud<pcl::PointXYZRGB>& __y) {
+		// get the bounding box for point cloud __x and __y
+		float maxx = FLT_MIN, maxy = FLT_MIN, maxz = FLT_MIN;
+		float minx = FLT_MAX, miny = FLT_MAX, minz = FLT_MAX;
+		for (auto& i : __x) {
+			if (i.x > maxx)
+				maxx = i.x;
+			if (i.x < minx)
+				minx = i.x;
+			if (i.y > maxy)
+				maxy = i.y;
+			if (i.y < miny)
+				miny = i.y;
+			if (i.z > maxz)
+				maxz = i.z;
+			if (i.z < minz)
+				minz = i.z;
+		}
+		Eigen::Vector3f range_x;
+		range_x(0) = maxx - minx, range_x(1) = maxy - miny, range_x(2) = maxz - minz;
+
+		maxx = FLT_MIN, maxy = FLT_MIN, maxz = FLT_MIN;
+		minx = FLT_MAX, miny = FLT_MAX, minz = FLT_MAX;
+		for (auto& i : __y) {
+			if (i.x > maxx)
+				maxx = i.x;
+			if (i.x < minx)
+				minx = i.x;
+			if (i.y > maxy)
+				maxy = i.y;
+			if (i.y < miny)
+				miny = i.y;
+			if (i.z > maxz)
+				maxz = i.z;
+			if (i.z < minz)
+				minz = i.z;
+		}
+
+		Eigen::Vector3f range_y;
+		range_y(0) = maxx - minx, range_y(1) = maxy - miny, range_y(2) = maxz - minz;
+
+		Eigen::Vector3f result;
+		result(0) = range_y(0) / range_x(0), result(1) = range_y(1) / range_x(1), result(2) = range_y(2) / range_x(2);
+		return result;
+	}
+
+	inline void MatrixScale(Eigen::Matrix4f& __x, Eigen::Vector3f& __scale) {
+		__x(0, 0) *= __scale(0), __x(0, 1) *= __scale(0), __x(0, 2) *= __scale(0), __x(0, 3) *= __scale(0);
+		__x(1, 0) *= __scale(1), __x(1, 1) *= __scale(1), __x(1, 2) *= __scale(1), __x(1, 3) *= __scale(1);
+		__x(2, 0) *= __scale(2), __x(2, 1) *= __scale(2), __x(2, 2) *= __scale(2), __x(2, 3) *= __scale(2);
+	}
 }  // namespace operation
 
 }  // namespace vvs

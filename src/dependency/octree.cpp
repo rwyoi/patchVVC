@@ -1,7 +1,14 @@
 /***
  * @Author: ChenRP07
+ * @Date: 2022-07-11 18:12:56
+ * @LastEditTime: 2022-07-12 10:41:34
+ * @LastEditors: ChenRP07
+ * @Description:
+ */
+/***
+ * @Author: ChenRP07
  * @Date: 2022-06-30 14:33:25
- * @LastEditTime: 2022-07-11 16:20:18
+ * @LastEditTime: 2022-07-11 18:01:42
  * @LastEditors: ChenRP07
  * @Description: Implement of octree
  */
@@ -286,60 +293,7 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 				this->tree_nodes_[i][j].cof_v_.clear();
 			}
 		}
-		// std::vector<int> UQcoff_y, UQcoff_u, UQcoff_v;
-		// for (auto& k : coff_y) {
-		// 	UQcoff_y.emplace_back(static_cast<int>(std::round(k / kQStep)));
-		// }
-		// for (auto& k : coff_u) {
-		// 	UQcoff_u.emplace_back(static_cast<int>(std::round(k / kQStep)));
-		// }
-		// for (auto& k : coff_v) {
-		// 	UQcoff_v.emplace_back(static_cast<int>(std::round(k / kQStep)));
-		// }
 
-		// std::vector<size_t> weights;
-		// for (size_t i = 0; i < this->tree_height_ - 1; i++) {
-		// 	for (size_t j = 0; j < this->tree_nodes_[i].size(); j++) {
-		// 		for (auto& k : this->tree_nodes_[i][j].cof_weights_) {
-		// 			weights.emplace_back(k);
-		// 		}
-		// 	}
-		// }
-
-		// std::map<size_t, std::pair<int, int>> weight_value;
-
-		// for (size_t i = 0; i < weights.size(); i++) {
-		// 	if (!weight_value.count(weights[i])) {
-		// 		weight_value[weights[i]] = std::pair<int, int>(1, 0);
-		// 	}
-		// 	else {
-		// 		weight_value[weights[i]].first++;
-		// 	}
-		// }
-
-		// auto it = weight_value.end();
-		// it--;
-		// size_t count = 1;
-
-		// for (; it != weight_value.begin(); it--) {
-		// 	count += it->second.first;
-		// 	it->second.second = count;
-		// }
-
-		// count += weight_value.begin()->second.first;
-		// weight_value.begin()->second.second = count;
-
-		// std::vector<int> Qcoff_y(UQcoff_y.size()), Qcoff_u(UQcoff_u.size()), Qcoff_v(UQcoff_v.size());
-		// Qcoff_y[0] = UQcoff_y[0], Qcoff_u[0] = UQcoff_u[0], Qcoff_v[0] = UQcoff_v[0];
-
-		// for (size_t i = 1; i < UQcoff_y.size(); i++) {
-		// 	size_t idx   = weight_value[weights[i - 1]].second - weight_value[weights[i - 1]].first;
-		// 	Qcoff_y[idx] = UQcoff_y[i];
-		// 	Qcoff_u[idx] = UQcoff_u[i];
-		// 	Qcoff_v[idx] = UQcoff_v[i];
-		// 	weight_value[weights[i - 1]].first--;
-		// }
-		
 		// quantization
 		std::vector<int> Qcoff_y, Qcoff_u, Qcoff_v;
 
@@ -352,19 +306,6 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 		for (auto& k : coff_v) {
 			Qcoff_v.emplace_back(static_cast<int>(std::round(k / kQStep)));
 		}
-
-		// RLE
-#ifdef _RAHT_RLE_
-		for (size_t i = 2; i < Qcoff_y.size(); i++) {
-			Qcoff_y[i] -= Qcoff_y[i - 1];
-		}
-		for (size_t i = 2; i < Qcoff_u.size(); i++) {
-			Qcoff_u[i] -= Qcoff_u[i - 1];
-		}
-		for (size_t i = 2; i < Qcoff_v.size(); i++) {
-			Qcoff_v[i] -= Qcoff_v[i - 1];
-		}
-#endif
 
 		// std::ofstream outfile("./sig/Patch#" + std::to_string(index) + ".dat");
 		// for (size_t i = 0; i < Qcoff_y.size(); i++) {
@@ -381,7 +322,30 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 			temp += static_cast<char>(Qcoff_y[i]);
 #endif
 #ifdef _RAHT_FIX_8_
-			temp += vvs::operation::Int2Char(Qcoff_y[i]);
+
+			if (Qcoff_y[i] == 0) {
+				size_t zero_count = 0;
+				for (size_t j = i; j < Qcoff_y.size(); j++) {
+					if (Qcoff_y[j] == 0) {
+						zero_count++;
+					}
+					else {
+						break;
+					}
+				}
+				if (zero_count >= 5) {
+					temp += static_cast<char>(0x80);
+					temp += static_cast<char>(zero_count >> 8);
+					temp += static_cast<char>(zero_count);
+					i += (zero_count - 1);
+				}
+				else {
+					temp += vvs::operation::Int2Char(Qcoff_y[i]);
+				}
+			}
+			else {
+				temp += vvs::operation::Int2Char(Qcoff_y[i]);
+			}
 #endif
 		}
 
@@ -392,7 +356,29 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 			temp += static_cast<char>(Qcoff_u[i]);
 #endif
 #ifdef _RAHT_FIX_8_
-			temp += vvs::operation::Int2Char(Qcoff_u[i]);
+			if (Qcoff_u[i] == 0) {
+				size_t zero_count = 0;
+				for (size_t j = i; j < Qcoff_u.size(); j++) {
+					if (Qcoff_u[j] == 0) {
+						zero_count++;
+					}
+					else {
+						break;
+					}
+				}
+				if (zero_count >= 5) {
+					temp += static_cast<char>(0x80);
+					temp += static_cast<char>(zero_count >> 8);
+					temp += static_cast<char>(zero_count);
+					i += (zero_count - 1);
+				}
+				else {
+					temp += vvs::operation::Int2Char(Qcoff_u[i]);
+				}
+			}
+			else {
+				temp += vvs::operation::Int2Char(Qcoff_u[i]);
+			}
 #endif
 		}
 
@@ -403,7 +389,29 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 			temp += static_cast<char>(Qcoff_v[i]);
 #endif
 #ifdef _RAHT_FIX_8_
-			temp += vvs::operation::Int2Char(Qcoff_v[i]);
+			if (Qcoff_v[i] == 0) {
+				size_t zero_count = 0;
+				for (size_t j = i; j < Qcoff_v.size(); j++) {
+					if (Qcoff_v[j] == 0) {
+						zero_count++;
+					}
+					else {
+						break;
+					}
+				}
+				if (zero_count >= 5) {
+					temp += static_cast<char>(0x80);
+					temp += static_cast<char>(zero_count >> 8);
+					temp += static_cast<char>(zero_count);
+					i += (zero_count - 1);
+				}
+				else {
+					temp += vvs::operation::Int2Char(Qcoff_v[i]);
+				}
+			}
+			else {
+				temp += vvs::operation::Int2Char(Qcoff_v[i]);
+			}
 #endif
 		}
 
@@ -509,6 +517,22 @@ void SingleOctree3D::SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __po
 
 		// add tree node recursively
 		this->AddTreeNode(__point_cloud, __octree_points, 0, this->tree_resolution_, this->tree_center_);
+		for (int i = this->tree_height_ - 2; i >= 0; i--) {
+			size_t node_index = 0;
+			for (size_t j = 0; j < this->tree_nodes_[i].size(); j++) {
+				std::vector<size_t> weights(8, 0);
+				std::vector<size_t> pos;
+				vvs::operation::NodePointPosition(this->tree_nodes_[i][j].subnodes_, pos);
+				size_t count                    = pos.size();
+				this->tree_nodes_[i][j].weight_ = 0;
+				for (size_t k = 0; k < count; k++) {
+					this->tree_nodes_[i][j].weight_ += this->tree_nodes_[i + 1][node_index].weight_;
+					weights[pos[k]] = this->tree_nodes_[i + 1][node_index].weight_;
+					node_index++;
+				}
+				vvs::operation::CalculateWeights(weights, this->tree_nodes_[i][j]);
+			}
+		}
 	}
 	catch (const char* error_message) {
 		std::cerr << "Fatal error in Octree3D SetPointCloud : " << error_message << std::endl;
@@ -533,7 +557,7 @@ bool SingleOctree3D::AddTreeNode(const pcl::PointCloud<pcl::PointXYZRGB>& __poin
 		}
 		else if (__height < this->tree_height_ - 1) {
 			// new node
-			vvs::type::TreeNode node(__node_points.size());
+			vvs::type::TreeNode node;
 			// for 8 subnodes
 			std::vector<std::vector<size_t>> __subnodes_value(8, std::vector<size_t>());
 
@@ -720,17 +744,102 @@ void SingleOctree3D::RAHT(std::string& __result, const int kQStep) {
 		temp += static_cast<char>(Qcoff_y[0] >> 24), temp += static_cast<char>(Qcoff_y[0] >> 16), temp += static_cast<char>(Qcoff_y[0] >> 8), temp += static_cast<char>(Qcoff_y[0]);
 		// others are 16-bit int
 		for (size_t i = 1; i < Qcoff_y.size(); i++) {
-			temp += static_cast<char>(Qcoff_y[i] >> 8), temp += static_cast<char>(Qcoff_y[i]);
+#ifdef _RAHT_FIX_16_
+			temp += static_cast<char>(Qcoff_y[i] >> 8);
+			temp += static_cast<char>(Qcoff_y[i]);
+#endif
+#ifdef _RAHT_FIX_8_
+
+			if (Qcoff_y[i] == 0) {
+				size_t zero_count = 0;
+				for (size_t j = i; j < Qcoff_y.size(); j++) {
+					if (Qcoff_y[j] == 0) {
+						zero_count++;
+					}
+					else {
+						break;
+					}
+				}
+				if (zero_count >= 5) {
+					temp += static_cast<char>(0x80);
+					temp += static_cast<char>(zero_count >> 8);
+					temp += static_cast<char>(zero_count);
+					i += (zero_count - 1);
+				}
+				else {
+					temp += vvs::operation::Int2Char(Qcoff_y[i]);
+				}
+			}
+			else {
+				temp += vvs::operation::Int2Char(Qcoff_y[i]);
+			}
+#endif
 		}
 
 		temp += static_cast<char>(Qcoff_u[0] >> 24), temp += static_cast<char>(Qcoff_u[0] >> 16), temp += static_cast<char>(Qcoff_u[0] >> 8), temp += static_cast<char>(Qcoff_u[0]);
 		for (size_t i = 1; i < Qcoff_u.size(); i++) {
-			temp += static_cast<char>(Qcoff_u[i] >> 8), temp += static_cast<char>(Qcoff_u[i]);
+#ifdef _RAHT_FIX_16_
+			temp += static_cast<char>(Qcoff_u[i] >> 8);
+			temp += static_cast<char>(Qcoff_u[i]);
+#endif
+#ifdef _RAHT_FIX_8_
+			if (Qcoff_u[i] == 0) {
+				size_t zero_count = 0;
+				for (size_t j = i; j < Qcoff_u.size(); j++) {
+					if (Qcoff_u[j] == 0) {
+						zero_count++;
+					}
+					else {
+						break;
+					}
+				}
+				if (zero_count >= 5) {
+					temp += static_cast<char>(0x80);
+					temp += static_cast<char>(zero_count >> 8);
+					temp += static_cast<char>(zero_count);
+					i += (zero_count - 1);
+				}
+				else {
+					temp += vvs::operation::Int2Char(Qcoff_u[i]);
+				}
+			}
+			else {
+				temp += vvs::operation::Int2Char(Qcoff_u[i]);
+			}
+#endif
 		}
 
 		temp += static_cast<char>(Qcoff_v[0] >> 24), temp += static_cast<char>(Qcoff_v[0] >> 16), temp += static_cast<char>(Qcoff_v[0] >> 8), temp += static_cast<char>(Qcoff_v[0]);
 		for (size_t i = 1; i < Qcoff_v.size(); i++) {
-			temp += static_cast<char>(Qcoff_v[i] >> 8), temp += static_cast<char>(Qcoff_v[i]);
+#ifdef _RAHT_FIX_16_
+			temp += static_cast<char>(Qcoff_v[i] >> 8);
+			temp += static_cast<char>(Qcoff_v[i]);
+#endif
+#ifdef _RAHT_FIX_8_
+			if (Qcoff_v[i] == 0) {
+				size_t zero_count = 0;
+				for (size_t j = i; j < Qcoff_v.size(); j++) {
+					if (Qcoff_v[j] == 0) {
+						zero_count++;
+					}
+					else {
+						break;
+					}
+				}
+				if (zero_count >= 5) {
+					temp += static_cast<char>(0x80);
+					temp += static_cast<char>(zero_count >> 8);
+					temp += static_cast<char>(zero_count);
+					i += (zero_count - 1);
+				}
+				else {
+					temp += vvs::operation::Int2Char(Qcoff_v[i]);
+				}
+			}
+			else {
+				temp += vvs::operation::Int2Char(Qcoff_v[i]);
+			}
+#endif
 		}
 
 		// malloc some space

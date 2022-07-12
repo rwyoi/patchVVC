@@ -75,6 +75,7 @@ namespace type {
 		size_t        tree_height_;
 		// fitting colors
 		std::string colors_;
+		size_t      size;
 	};
 
 	// a compressed p-frame patch
