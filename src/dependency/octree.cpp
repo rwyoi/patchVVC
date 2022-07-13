@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-07-11 18:12:56
- * @LastEditTime: 2022-07-12 10:41:34
+ * @LastEditTime: 2022-07-13 17:50:23
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -862,4 +862,100 @@ void SingleOctree3D::RAHT(std::string& __result, const int kQStep) {
 		std::cerr << "Fatal error in Octree3D RAHT : " << error_message << std::endl;
 		std::exit(1);
 	}
+}
+
+FittingOctree3D::FittingOctree3D() {}
+
+void FittingOctree3D::SetPointCloud(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>& __point_cloud) {
+	try {
+		// cloud must be not empty
+		if (__point_cloud.empty()) {
+			throw "Empty input point cloud.";
+		}
+
+		size_t total = 0;
+		// set center and resolution
+		float min_x = FLT_MAX, min_y = FLT_MAX, min_z = FLT_MAX;
+		float max_x = FLT_MIN, max_y = FLT_MIN, max_z = FLT_MIN;
+		for (auto& p : __point_cloud) {
+			total += p.size();
+			for (auto& i : p) {
+				min_x = i.x < min_x ? i.x : min_x;
+				min_y = i.y < min_y ? i.y : min_y;
+				min_z = i.z < min_z ? i.z : min_z;
+				max_x = i.x > max_x ? i.x : max_x;
+				max_y = i.y > max_y ? i.y : max_y;
+				max_z = i.z > max_z ? i.z : max_z;
+			}
+		}
+		this->avg_size_        = static_cast<size_t>(std::ceil(static_cast<float>(total) / __point_cloud.size()));
+		float __resolution     = std::max(std::max(max_x - min_x, max_y - min_y), max_z - min_z);
+		this->tree_resolution_ = std::pow(2.0f, std::ceil(std::log2(__resolution)));
+		this->tree_center_.x   = (max_x + min_x) / 2.0f;
+		this->tree_center_.y   = (max_y + min_y) / 2.0f;
+		this->tree_center_.z   = (max_z + min_z) / 2.0f;
+
+		this->AddTreeNode(__point_cloud, this->tree_resolution_, this->tree_center_);
+	}
+	catch (const char* error_message) {
+		std::cerr << "Fatal error in FittingOctree3D SetPointCloud : " << error_message << std::endl;
+		std::exit(1);
+	}
+}
+
+void FittingOctree3D::AddTreeNode(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>& __point_cloud, float __res, pcl::PointXYZ __center) {
+	try {
+		// if this node is empty, return 0
+		if (vvs::operation::AllEmpty(__point_cloud)) {
+			return;
+		}
+		else if (vvs::operation::Divided(__point_cloud) || (vvs::operation::AllSize(__point_cloud) <= this->avg_size_)) {
+			pcl::PointCloud<pcl::PointXYZRGB> points, centers;
+			for (auto& i : __point_cloud) {
+				for (auto& j : i) {
+					points.emplace_back(j);
+				}
+			}
+			vvs::operation::KMeans(points, centers, vvs::operation::AllSize(__point_cloud) / __point_cloud.size());
+
+			for (auto& i : centers) {
+				this->fitting_patch_.emplace_back(i);
+			}
+			return;
+		}
+		else {
+			// for 8 subnodes
+			std::vector<std::vector<pcl::PointCloud<pcl::PointXYZRGB>>> __node_points(8, std::vector<pcl::PointCloud<pcl::PointXYZRGB>>(__point_cloud.size()));
+
+			// calculate the position
+			for (size_t i = 0; i < __point_cloud.size(); i++) {
+				for (auto& j : __point_cloud[i]) {
+					int pos = 0;
+					pos |= j.x > __center.x ? 0 : 1;
+					pos <<= 1;
+					pos |= j.y > __center.y ? 0 : 1;
+					pos <<= 1;
+					pos |= j.z > __center.z ? 0 : 1;
+					__node_points[i][pos].emplace_back(j);
+				}
+			}
+
+			__point_cloud.clear();
+
+			for (size_t i = 0; i < 8; i++) {
+				// get a new subcenter
+				pcl::PointXYZ __new_center = vvs::operation::SubnodeCenter(__center, i, __res / 2);
+				this->AddTreeNode(__node_points[i], __res / 2, __new_center);
+			}
+			return;
+		}
+	}
+	catch (const char* error_message) {
+		std::cerr << "Fatal error in Octree3D AddTreeNode : " << error_message << std::endl;
+		std::exit(1);
+	}
+}
+
+void FittingOctree3D::GetPointCloud(pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud) {
+	__point_cloud.swap(this->fitting_patch_);
 }

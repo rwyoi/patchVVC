@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 19:55:40
- * @LastEditTime: 2022-07-12 11:15:19
+ * @LastEditTime: 2022-07-13 17:46:33
  * @LastEditors: ChenRP07
  * @Description: Header of octree
  */
@@ -362,6 +362,47 @@ namespace octree {
 
 		bool out = false;
 	};
+
+	class FittingOctree3D {
+	  private:
+		// tree nodes
+		pcl::PointCloud<pcl::PointXYZRGB> fitting_patch_;
+		size_t                            avg_size_;
+
+		float         tree_resolution_;
+		pcl::PointXYZ tree_center_;
+
+	  public:
+		/***
+		 * @description: constructor, __res is the min resolution, default is 2.0
+		 * @param {float} __res
+		 * @return {*}
+		 */
+		FittingOctree3D();
+
+		/***
+		 * @description: add a tree node on __height layer and this node res is __res, center is __center, point indexes are __node_points
+		 * @param {const PointCloud<PointXYZRGB>&} __point_cloud
+		 * @param {const vector<vector<ColorRGB>>&} __point_colors
+		 * @param {vector<size_t>&} __node_points
+		 * @param {size_t} __height
+		 * @param {PointXYZ} __center
+		 * @param {float} __res
+		 * @return {*}
+		 */
+		void AddTreeNode(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>& __point_cloud, float __res, pcl::PointXYZ __center);
+
+		/***
+		 * @description: use __point_cloud and __point_colors to create a octree, cloud center is __center and span range is __res
+		 * @param {const PointCloud<PointXYZRGB>&} __point_cloud
+		 * @param {const vector<vector<ColorRGB>>&} __point_colors
+		 * @return {*}
+		 */
+		void SetPointCloud(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>& __point_cloud);
+
+		void GetPointCloud(pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud);
+	};
+
 }  // namespace octree
 }  // namespace vvs
 #endif

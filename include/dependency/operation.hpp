@@ -772,6 +772,87 @@ namespace operation {
 		__x(1, 0) *= __scale(1), __x(1, 1) *= __scale(1), __x(1, 2) *= __scale(1), __x(1, 3) *= __scale(1);
 		__x(2, 0) *= __scale(2), __x(2, 1) *= __scale(2), __x(2, 2) *= __scale(2), __x(2, 3) *= __scale(2);
 	}
+
+	inline bool Divided(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>& __points) {
+		for (auto& i : __points) {
+			if (i.size() <= 1) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	inline bool AllEmpty(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>& __clouds) {
+		for (auto& i : __clouds) {
+			if (!i.empty()) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	inline size_t AllSize(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>& __clouds) {
+		size_t sum = 0;
+		for (auto& i : __clouds) {
+			sum += i.size();
+		}
+		return sum;
+	}
+
+	inline void KMeans(pcl::PointCloud<pcl::PointXYZRGB>& __points, pcl::PointCloud<pcl::PointXYZRGB>& __centers, size_t __k) {
+		// init centers
+		if (__k == 1) {
+			pcl::PointXYZRGB center;
+			center.x = 0.0f, center.y = 0.0f, center.z = 0.0f;
+			for (auto& i : __points) {
+				vvs::operation::PointAddCopy(center, i);
+			}
+			vvs::operation::PointDivCopy(center, __points.size());
+			__centers.emplace_back(center);
+		}
+		else {
+			for (auto& i : __points) {
+				__centers.emplace_back(i);
+			}
+			while (__centers.size() > __k) {
+				std::swap(__centers[rand() % __centers.size()], __centers.back());
+				__centers.points.pop_back();
+			}
+
+			for (size_t t = 0; t < 100; t++) {
+				pcl::PointCloud<pcl::PointXYZRGB> __next;
+				__next.points.resize(__centers.size(), pcl::PointXYZRGB());
+				std::vector<size_t> count(__centers.size(), 0);
+
+				pcl::search::KdTree<pcl::PointXYZRGB> tree;
+				tree.setInputCloud(__centers.makeShared());
+
+				for (size_t i = 0; i < __points.size(); i++) {
+					std::vector<int>   idx(1);
+					std::vector<float> dis(1);
+					tree.nearestKSearch(__points[i], 1, idx, dis);
+					vvs::operation::PointAddCopy(__next[idx[0]], __points[i]);
+					count[idx[0]]++;
+				}
+
+				float error = 0.0f;
+				for (size_t i = 0; i < __next.size(); i++) {
+					if (count[i] == 0) {
+						__next[i] = __centers[i];
+					}
+					else {
+						vvs::operation::PointDivCopy(__next[i], count[i]);
+					}
+					error += std::sqrt(std::pow(__next[i].x - __centers[i].x, 2) + std::pow(__next[i].y - __centers[i].y, 2) + std::pow(__next[i].z - __centers[i].z, 2));
+				}
+				error /= __centers.size();
+				__centers.swap(__next);
+				if (error <= 0.01f) {
+					break;
+				}
+			}
+		}
+	}
 }  // namespace operation
 
 }  // namespace vvs

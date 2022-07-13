@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-07-12 11:16:46
+ * @LastEditTime: 2022-07-13 11:17:11
  * @LastEditors: ChenRP07
  * @Description: Implement of Volumetric Video Encoder.
  */
@@ -243,11 +243,6 @@ void coder::Encoder::Output(pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud) {
  */
 void coder::Encoder::OutputIFrame(const std::string& __i_frame_name) {
 	try {
-		size_t size = 0;
-		for (size_t i = 0; i < this->kPatchNumber; i++) {
-			size += this->i_frame_patches_[i].size;
-		}
-		std::cout << size << std::endl;
 		std::string dir_path = __i_frame_name;
 		// if __dir_path is not ended with '/', add a '/'
 		if (dir_path.back() != '/') {

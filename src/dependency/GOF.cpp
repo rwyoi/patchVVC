@@ -1,13 +1,14 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:06:07
- * @LastEditTime: 2022-07-12 11:25:29
+ * @LastEditTime: 2022-07-13 17:45:19
  * @LastEditors: ChenRP07
  * @Description: Implement of GroupOfFrames, including create, compression
  */
 #include "dependency/octree.h"
 // #define KMEANS
-#define KNNS
+// #define KNNS
+#define TREE_CLUSTERING
 using namespace vvs::octree;
 
 /***
@@ -368,6 +369,8 @@ void GOF::GenerateFittingPatch(const float kMSEThreshold, const float max_corren
 				break;
 			}
 		}
+		// save the result
+		this->fitting_patch_.swap(centers);
 	}
 #endif
 #ifdef KNNS
@@ -402,9 +405,36 @@ void GOF::GenerateFittingPatch(const float kMSEThreshold, const float max_corren
 		vvs::operation::PointDivCopy(cen, trees.size());
 		centers.emplace_back(cen);
 	}
-#endif
 	// save the result
 	this->fitting_patch_.swap(centers);
+#endif
+#ifdef TREE_CLUSTERING
+
+	std::vector<pcl::PointCloud<pcl::PointXYZRGB>> data;
+
+	size_t cloud_count = 0;
+
+	for (size_t i = 0; i < this->kGroupOfFrames; i++) {
+		if (!this->patch_coding_mode_[i]) {
+			data.emplace_back(this->frame_patches_[i]);
+			cloud_count++;
+		}
+	}
+	if (cloud_count == 1) {
+		this->fitting_patch_.swap(data[0]);
+		return;
+	}
+	else {
+		vvs::octree::FittingOctree3D fit_tree;
+		fit_tree.SetPointCloud(data);
+		fit_tree.GetPointCloud(this->fitting_patch_);
+		// while (this->fitting_patch_.size() > (data.size() / cloud_count)) {
+		// 	size_t index = rand() % this->fitting_patch_.size();
+		// 	std::swap(this->fitting_patch_[index], this->fitting_patch_.back());
+		// 	this->fitting_patch_.points.pop_back();
+		// }
+	}
+#endif
 }
 
 /***
