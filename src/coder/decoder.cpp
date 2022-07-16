@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-07-01 16:21:06
- * @LastEditTime: 2022-07-12 11:01:09
+ * @LastEditTime: 2022-07-14 10:51:17
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -174,7 +174,7 @@ void coder::Decoder::AddPFrame(const std::string& __p_frame_name) {
 	}
 }
 
-void coder::Decoder::GetIFrame(pcl::PointCloud<pcl::PointXYZRGB>& __i_frame) {
+float coder::Decoder::GetIFrame(pcl::PointCloud<pcl::PointXYZRGB>& __i_frame) {
 	timeval time1, time2;
 	gettimeofday(&time1, nullptr);
 	this->task_mutex_.lock();
@@ -202,7 +202,8 @@ void coder::Decoder::GetIFrame(pcl::PointCloud<pcl::PointXYZRGB>& __i_frame) {
 	}
 
 	gettimeofday(&time2, nullptr);
-	printf("IFrame decoding cost %.6fs.\n", time2.tv_sec - time1.tv_sec + (float)(time2.tv_usec - time1.tv_usec) / 1e6);
+	float cost = (time2.tv_sec - time1.tv_sec) * 1000 + (float)(time2.tv_usec - time1.tv_usec) / 1000;
+	printf("IFrame decoding cost %.3fms.\n", cost);
 
 	for (size_t i = 0; i < kPatchNumber; i++) {
 		for (size_t j = 0; j < this->fitting_patches_[i].size(); j++) {
@@ -219,9 +220,10 @@ void coder::Decoder::GetIFrame(pcl::PointCloud<pcl::PointXYZRGB>& __i_frame) {
 			__i_frame.emplace_back(j);
 		}
 	}
+	return cost;
 }
 
-void coder::Decoder::GetPFrame(pcl::PointCloud<pcl::PointXYZRGB>& __p_frame) {
+float coder::Decoder::GetPFrame(pcl::PointCloud<pcl::PointXYZRGB>& __p_frame) {
 	timeval time1, time2;
 	gettimeofday(&time1, nullptr);
 	this->task_mutex_.lock();
@@ -246,8 +248,10 @@ void coder::Decoder::GetPFrame(pcl::PointCloud<pcl::PointXYZRGB>& __p_frame) {
 	for (auto& i : task_threads) {
 		i.join();
 	}
+
 	gettimeofday(&time2, nullptr);
-	printf("PFrame decoding cost %.6fs.\n", time2.tv_sec - time1.tv_sec + (float)(time2.tv_usec - time1.tv_usec) / 1e6);
+	float cost = (time2.tv_sec - time1.tv_sec) * 1000 + (float)(time2.tv_usec - time1.tv_usec) / 1000;
+	printf("IFrame decoding cost %.3fms.\n", cost);
 
 	for (size_t i = 0; i < kPatchNumber; i++) {
 		if (!this->P_Frame_Patches_[i].is_independent_) {
@@ -276,6 +280,7 @@ void coder::Decoder::GetPFrame(pcl::PointCloud<pcl::PointXYZRGB>& __p_frame) {
 			__p_frame.emplace_back(j);
 		}
 	}
+	return cost;
 }
 
 void coder::Decoder::GetIFrameProc() {

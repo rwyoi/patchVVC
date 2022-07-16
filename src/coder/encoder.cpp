@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-07-13 11:17:11
+ * @LastEditTime: 2022-07-14 14:28:17
  * @LastEditors: ChenRP07
  * @Description: Implement of Volumetric Video Encoder.
  */
@@ -183,7 +183,7 @@ void coder::Encoder::EncodingProc() {
 			if (index == 8) {
 				this->point_clouds_[index].out = true;
 			}
-			this->point_clouds_[index].GenerateFittingPatch(this->kMSEThreshold, 200.0f, 100);
+			this->point_clouds_[index].GenerateFittingPatch(this->kMSEThreshold, 1000.0f, 100);
 			this->point_clouds_[index].PatchColorFitting(5);
 			// this->point_clouds_[index].Output(this->test_[index], 0);
 			this->point_clouds_[index].Compression(this->i_frame_patches_[index], this->p_frame_patches_[index], index);

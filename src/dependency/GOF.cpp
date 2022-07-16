@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:06:07
- * @LastEditTime: 2022-07-13 17:45:19
+ * @LastEditTime: 2022-07-14 14:27:45
  * @LastEditors: ChenRP07
  * @Description: Implement of GroupOfFrames, including create, compression
  */
@@ -275,7 +275,7 @@ void GOF::GenerateFittingPatch(const float kMSEThreshold, const float max_corren
 		vvs::registration::ICP nicp(max_correnspondence, max_iteration);
 		nicp.SetSourcePointCloudCopy(this->frame_patches_[i]);
 		nicp.SetTargetPointCloudCopy(this->frame_patches_[0]);
-		bool converged = nicp.align();
+		bool converged = nicp.align(1);
 		// not converge
 		if (!converged) {
 			this->patch_coding_mode_[i] = 1;

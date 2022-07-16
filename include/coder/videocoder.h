@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:13:32
- * @LastEditTime: 2022-07-11 10:21:33
+ * @LastEditTime: 2022-07-14 10:51:06
  * @LastEditors: ChenRP07
  * @Description: Header of Volumetric Video Encoder
  */
@@ -131,10 +131,10 @@ namespace coder {
 
 	  public:
 		Decoder(const size_t __ths);
-		void AddIFrame(const std::string& __i_frame_name);
-		void AddPFrame(const std::string& __p_frame_name);
-		void GetIFrame(pcl::PointCloud<pcl::PointXYZRGB>& __i_frame);
-		void GetPFrame(pcl::PointCloud<pcl::PointXYZRGB>& __p_frame);
+		void  AddIFrame(const std::string& __i_frame_name);
+		void  AddPFrame(const std::string& __p_frame_name);
+		float GetIFrame(pcl::PointCloud<pcl::PointXYZRGB>& __i_frame);
+		float GetPFrame(pcl::PointCloud<pcl::PointXYZRGB>& __p_frame);
 	};
 
 }  // namespace coder
