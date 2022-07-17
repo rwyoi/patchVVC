@@ -481,7 +481,7 @@ namespace operation {
 			y_mse1 += error(0), u_mse1 += error(1), v_mse1 += error(2);
 		}
 
-		y_mse1 /= __x.size(), u_mse1 /= __x.size(), v_mse1 /= __x.size();
+		y_mse1 /= __y.size(), u_mse1 /= __y.size(), v_mse1 /= __y.size();
 
 		Eigen::Vector3f result;
 		result(0) = 10 * std::log10(255 * 255 / std::max(y_mse, y_mse1));

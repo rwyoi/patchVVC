@@ -260,10 +260,7 @@ void DeOctree3D::IRAHT(std::string& __source, size_t point_count, std::vector<vv
 		}
 #endif
 	}
-	// std::ofstream outfile("./desig/Patch$" + std::to_string(index) + ".dat");
-	// for (size_t i = 0; i < coffs_y.size(); i++) {
-	// 	outfile << coffs_y[i] << " " << coffs_u[i] << " " << coffs_v[i] << std::endl;
-	// }
+
 	// dequantization
 	for (auto& i : coffs_y) {
 		i *= kQStep;
@@ -275,6 +272,7 @@ void DeOctree3D::IRAHT(std::string& __source, size_t point_count, std::vector<vv
 		i *= kQStep;
 	}
 
+	
 	// final signal
 	this->tree_nodes_[0][0].sig_y_ = coffs_y[0];
 	this->tree_nodes_[0][0].sig_u_ = coffs_u[0];

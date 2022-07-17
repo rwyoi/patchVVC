@@ -307,10 +307,6 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 			Qcoff_v.emplace_back(static_cast<int>(std::round(k / kQStep)));
 		}
 
-		// std::ofstream outfile("./sig/Patch#" + std::to_string(index) + ".dat");
-		// for (size_t i = 0; i < Qcoff_y.size(); i++) {
-		// 	outfile << Qcoff_y[i] << " " << Qcoff_u[i] << " " << Qcoff_v[i] << std::endl;
-		// }
 		std::string temp;
 
 		// first signal is 32-bit int
@@ -328,6 +324,9 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 				for (size_t j = i; j < Qcoff_y.size(); j++) {
 					if (Qcoff_y[j] == 0) {
 						zero_count++;
+						if (zero_count == 32700){
+							break;
+						}
 					}
 					else {
 						break;
@@ -361,6 +360,9 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 				for (size_t j = i; j < Qcoff_u.size(); j++) {
 					if (Qcoff_u[j] == 0) {
 						zero_count++;
+						if (zero_count == 32700){
+							break;
+						}
 					}
 					else {
 						break;
@@ -394,6 +396,9 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 				for (size_t j = i; j < Qcoff_v.size(); j++) {
 					if (Qcoff_v[j] == 0) {
 						zero_count++;
+						if (zero_count == 32700){
+							break;
+						}
 					}
 					else {
 						break;
