@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:13:32
- * @LastEditTime: 2022-07-14 10:51:06
+ * @LastEditTime: 2022-07-19 19:03:54
  * @LastEditors: ChenRP07
  * @Description: Header of Volumetric Video Encoder
  */
@@ -26,7 +26,7 @@ namespace coder {
 		std::vector<vvs::type::IFramePatch>              i_frame_patches_;
 		std::vector<std::vector<vvs::type::PFramePatch>> p_frame_patches_;
 		const size_t                                     kGroupOfFrames;  // constant number of gof
-		const size_t                                     kPatchNumber;    // constant number of patches
+		size_t                                           kPatchNumber;    // constant number of patches
 		const float                                      kMinResolution;  // constant number of min resolution
 		const size_t                                     kThreads;
 		const float                                      kMSEThreshold;

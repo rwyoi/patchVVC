@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-07-14 14:28:17
+ * @LastEditTime: 2022-07-20 10:53:59
  * @LastEditors: ChenRP07
  * @Description: Implement of Volumetric Video Encoder.
  */
@@ -54,6 +54,15 @@ void coder::Encoder::AddIFrame(const std::string& __file_name) {
 		// get the split results -- patches
 		std::vector<pcl::PointCloud<pcl::PointXYZRGB>> __i_patches;
 		__clustering.GetPatches(__i_patches);
+		for (auto i = __i_patches.begin(); i != __i_patches.end();) {
+			if (i->size() < 100) {
+				__i_patches.erase(i);
+				this->kPatchNumber--;
+			}
+			else {
+				i++;
+			}
+		}
 		// add patches into gofs
 		for (size_t i = 0; i < this->kPatchNumber; i++) {
 			// printf("%lu\n", __i_patches[i].size());
@@ -70,7 +79,10 @@ void coder::Encoder::AddIFrame(const std::string& __file_name) {
 			}
 			this->last_motions_[i] = Eigen::Matrix4f::Identity();
 		}
-
+		this->i_frame_patches_.resize(this->kPatchNumber);
+		this->last_patches_.resize(this->kPatchNumber);
+		this->last_motions_.resize(this->kPatchNumber);
+		this->p_frame_patches_.resize(this->kPatchNumber);
 		this->frame_number_ += 1;
 	}
 	catch (const char* error_message) {

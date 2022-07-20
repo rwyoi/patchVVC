@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 17:00:23
- * @LastEditTime: 2022-07-05 17:47:17
+ * @LastEditTime: 2022-07-19 19:10:38
  * @LastEditors: ChenRP07
  * @Description: Implement of point cloud registration algorithm, including [1], [2]
  */
@@ -68,7 +68,8 @@ bool ICP::align(const int centroid_alignment_type) {
 	// check whether converged
 	try {
 		if (icp.hasConverged() == false) {
-			throw "Cannot converge.";
+			this->mean_squred_error_ = FLT_MAX;
+			return 0;
 		}
 		else
 			this->result_point_cloud_.swap(temp_point_cloud);
@@ -331,8 +332,8 @@ void ParallelICP::ThreadProcess() {
 				bool converge                         = task.align(2);
 				this->motion_vectors_[task_index]     = task.GetMotionVector();
 				this->mean_squred_errors_[task_index] = task.GetMSE();
-				if (converge == false)
-					throw "ICP is not converged";
+				// if (converge == false)
+				// 	throw "ICP is not converged";
 			}
 			catch (const char* error_message) {
 				IO_mutex_.lock();
