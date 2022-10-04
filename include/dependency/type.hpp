@@ -67,6 +67,11 @@ namespace type {
 	struct MacroBlock8;
 	struct TreeNode;
 
+	struct range {
+		float maxx, maxy, maxz;
+		float minx, miny, minz;
+	};
+
 	// a compressed i-frame patch
 	struct IFramePatch {
 		// fitting patch octree
@@ -76,6 +81,9 @@ namespace type {
 		// fitting colors
 		std::string colors_;
 		size_t      size;
+
+		size_t total_size;
+		range  box;
 	};
 
 	// a compressed p-frame patch
@@ -91,6 +99,9 @@ namespace type {
 		std::string colors_;
 		// motion vector
 		Eigen::Matrix4f motion_vector_;
+
+		size_t total_size;
+		range  box;
 
 		/***
 		 * @description: clear octree_ and colors_

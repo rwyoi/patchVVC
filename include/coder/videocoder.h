@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:13:32
- * @LastEditTime: 2022-07-19 19:03:54
+ * @LastEditTime: 2022-07-27 14:55:33
  * @LastEditors: ChenRP07
  * @Description: Header of Volumetric Video Encoder
  */
@@ -37,6 +37,8 @@ namespace coder {
 		std::vector<pcl::PointCloud<pcl::PointXYZRGB>> last_patches_;
 		std::vector<Eigen::Matrix4f>                   last_motions_;
 		std::vector<pcl::PointCloud<pcl::PointXYZRGB>> test_;
+
+		std::vector<pcl::PointCloud<pcl::PointXYZRGB>> Out_res_;
 
 		/***
 		 * @description: task function for multi-threads encoding

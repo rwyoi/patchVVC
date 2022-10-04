@@ -44,6 +44,8 @@ message(${CMAKE_EXPORT_COMPILE_COMMANDS})
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/src)
 
+add_definitions(-DBOOST_ERROR_CODE_HEADER_ONLY)
+
 if(EXISTS "${CMAKE_SOURCE_DIR}/test/CMakeLists.txt")
     set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/test)
     add_subdirectory(${CMAKE_SOURCE_DIR}/test)

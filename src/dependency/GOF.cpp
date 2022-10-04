@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 20:06:07
- * @LastEditTime: 2022-07-14 14:27:45
+ * @LastEditTime: 2022-07-23 18:35:29
  * @LastEditors: ChenRP07
  * @Description: Implement of GroupOfFrames, including create, compression
  */
@@ -538,7 +538,7 @@ void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::
 	// compress fitting patch
 	vvs::octree::Octree3D fit_tree;
 
-	fit_tree.SetPointCloud(this->fitting_patch_, this->patches_colors_);
+	fit_tree.SetPointCloud(this->fitting_patch_, this->patches_colors_, __i_frame.box);
 
 	// compressed colors
 	std::vector<std::string> compressed_colors;
@@ -553,6 +553,8 @@ void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::
 	color_index++;
 	__i_frame.size = fit_tree.size();
 
+	__i_frame.total_size = __i_frame.octree_.size() + __i_frame.colors_.size();
+
 	// for each p-frame
 	for (size_t i = 1; i < this->kGroupOfFrames; i++) {
 		// not independent, compensation with i-frame
@@ -564,6 +566,8 @@ void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::
 			color_index++;
 			// motion vector
 			__p_frames[i - 1].motion_vector_ = this->motion_vectors_[i];
+			__p_frames[i - 1].total_size     = __p_frames[i - 1].colors_.size();
+			__p_frames[i - 1].box            = __i_frame.box;
 		}
 		// independent coded
 		else {
@@ -574,11 +578,13 @@ void GOF::Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::
 
 			// independent coded by tree
 			vvs::octree::SingleOctree3D __p_tree;
-			__p_tree.SetPointCloud(this->frame_patches_[i]);
+			__p_tree.SetPointCloud(this->frame_patches_[i], __p_frames[i - 1].box);
 			// compressed tree
 			__p_tree.TreeCompression(__p_frames[i - 1].octree_, __p_frames[i - 1].center_, __p_frames[i - 1].tree_height_);
 			// block number and compressed color
 			__p_tree.RAHT(__p_frames[i - 1].colors_);
+
+			__p_frames[i - 1].total_size = __p_frames[i - 1].octree_.size() + __p_frames[i - 1].colors_.size();
 		}
 	}
 }

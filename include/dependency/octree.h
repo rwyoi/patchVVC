@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-21 19:55:40
- * @LastEditTime: 2022-07-20 09:50:23
+ * @LastEditTime: 2022-07-27 14:53:27
  * @LastEditors: ChenRP07
  * @Description: Header of octree
  */
@@ -172,13 +172,22 @@ namespace octree {
 
 		void Compression(vvs::type::IFramePatch& __i_frame, std::vector<vvs::type::PFramePatch>& __p_frames, size_t index);
 
-		void Output(pcl::PointCloud<pcl::PointXYZRGB>& cloud, size_t index) {
-			for (size_t i = 0; i < this->fitting_patch_.size(); i++) {
-				pcl::PointXYZRGB p;
-				p.x = this->fitting_patch_[i].x, p.y = this->fitting_patch_[i].y, p.z = this->fitting_patch_[i].z;
-				p.r = static_cast<uint8_t>(this->patches_colors_[index][i].r_), p.g = static_cast<uint8_t>(this->patches_colors_[index][i].g_),
-				p.b = static_cast<uint8_t>(this->patches_colors_[index][i].b_);
-				cloud.emplace_back(p);
+		void Output(std::vector<pcl::PointCloud<pcl::PointXYZRGB>>& cloud, size_t index) {
+			for (size_t i = 0; i < this->kGroupOfFrames; i++) {
+				pcl::PointCloud<pcl::PointXYZRGB> result;
+				if (this->patch_coding_mode_[i] == false) {
+					result = this->fitting_patch_;
+					vvs::operation::PointCloudMul(result, this->motion_vectors_[i].inverse());
+				}
+				else {
+					result = this->frame_patches_[i];
+					vvs::operation::PointCloudMul(result, this->motion_vectors_[i].inverse());
+				}
+
+				for (auto& p : result) {
+					p.r = index, p.g = index, p.b = index;
+					cloud[i].emplace_back(p);
+				}
 			}
 		}
 
@@ -230,7 +239,7 @@ namespace octree {
 		 * @param {const vector<vector<ColorRGB>>&} __point_colors
 		 * @return {*}
 		 */
-		void SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud, const std::vector<std::vector<vvs::type::ColorRGB>>& __point_colors);
+		void SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud, const std::vector<std::vector<vvs::type::ColorRGB>>& __point_colors, vvs::type::range& box);
 
 		/***
 		 * @description: using zstd to compress the tree nodes to __result, and get the tree parameters
@@ -290,7 +299,7 @@ namespace octree {
 		 * @param {const vector<vector<ColorRGB>>&} __point_colors
 		 * @return {*}
 		 */
-		void SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud);
+		void SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud, vvs::type::range& box);
 
 		/***
 		 * @description: using zstd to compress the tree nodes to __result, and get the tree parameters

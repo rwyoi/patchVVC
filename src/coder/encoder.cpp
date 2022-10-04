@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-06-22 14:55:40
- * @LastEditTime: 2022-07-20 10:53:59
+ * @LastEditTime: 2022-07-28 18:36:49
  * @LastEditors: ChenRP07
  * @Description: Implement of Volumetric Video Encoder.
  */
@@ -192,9 +192,6 @@ void coder::Encoder::EncodingProc() {
 			return;
 		}
 		else {
-			if (index == 8) {
-				this->point_clouds_[index].out = true;
-			}
 			this->point_clouds_[index].GenerateFittingPatch(this->kMSEThreshold, 1000.0f, 100);
 			this->point_clouds_[index].PatchColorFitting(5);
 			// this->point_clouds_[index].Output(this->test_[index], 0);
@@ -227,6 +224,11 @@ void coder::Encoder::Encoding() {
 
 	for (size_t i = 0; i < this->kThreads; i++) {
 		task_threads[i].join();
+	}
+
+	this->Out_res_.resize(this->kGroupOfFrames);
+	for (size_t i = 0; i < this->kPatchNumber; i++) {
+		this->point_clouds_[i].Output(Out_res_, i);
 	}
 }
 
@@ -261,6 +263,7 @@ void coder::Encoder::OutputIFrame(const std::string& __i_frame_name) {
 			dir_path += '/';
 		}
 		std::string i_frame_path = dir_path + "IFrame.dat";
+		std::string i_fov_path   = dir_path + "FoVI.fov";
 		// if this dir do not exist, create it
 		if (access(dir_path.c_str(), F_OK) == -1) {
 			int flag = mkdir(dir_path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
@@ -287,6 +290,8 @@ void coder::Encoder::OutputIFrame(const std::string& __i_frame_name) {
 
 		// open this file
 		FILE* fp = fopen(i_frame_path.c_str(), "w");
+
+		// std::ofstream outfile(i_fov_path);
 		if (fp == nullptr) {
 			std::string err = strerror(errno);
 			err             = "Cannot open IFrame data file, " + err;
@@ -299,6 +304,8 @@ void coder::Encoder::OutputIFrame(const std::string& __i_frame_name) {
 		fwrite(&(this->kPatchNumber), sizeof(size_t), 1, fp);
 		fwrite(&(this->kMinResolution), sizeof(float), 1, fp);
 
+		// outfile << "Total patch : " << this->kPatchNumber << std::endl;
+		// vvs::io::SaveColorPlyFile(dir_path + "FoVI.ply", this->Out_res_[0]);
 		// write each patch
 		for (size_t i = 0; i < this->kPatchNumber; i++) {
 			fwrite(&(this->i_frame_patches_[i].center_), sizeof(pcl::PointXYZ), 1, fp);
@@ -312,6 +319,9 @@ void coder::Encoder::OutputIFrame(const std::string& __i_frame_name) {
 			data_size = this->i_frame_patches_[i].colors_.size();
 			fwrite(&data_size, sizeof(size_t), 1, fp);
 			fwrite(this->i_frame_patches_[i].colors_.c_str(), sizeof(char), this->i_frame_patches_[i].colors_.size(), fp);
+
+			// outfile << "Patch#" << i << std::endl;
+			// outfile << this->i_frame_patches_[i].total_size << std::endl << std::endl;
 		}
 
 		fclose(fp);
@@ -348,6 +358,7 @@ void coder::Encoder::OutputPFrame(const std::string& __p_frame_name) {
 		// this dir exists
 		for (size_t i = 0; i < kGroupOfFrames - 1; i++) {
 			std::string p_frame_path = dir_path + "PFrame" + std::to_string(i) + ".dat";
+			std::string p_fov_path   = dir_path + "FoVP" + std::to_string(i) + ".fov";
 			// if this pframe exits, remove it
 			if (access(p_frame_path.c_str(), F_OK) != -1) {
 				int flag_rm = remove(p_frame_path.c_str());
@@ -361,6 +372,8 @@ void coder::Encoder::OutputPFrame(const std::string& __p_frame_name) {
 
 			// open this file
 			FILE* fp = fopen(p_frame_path.c_str(), "w");
+			// std::ofstream outfile(p_fov_path);
+
 			if (fp == nullptr) {
 				std::string err = strerror(errno);
 				err             = "Cannot open PFrame data file, " + err;
@@ -368,6 +381,8 @@ void coder::Encoder::OutputPFrame(const std::string& __p_frame_name) {
 				throw err.c_str();
 			}
 
+			// outfile << "Total patch : " << this->kPatchNumber << std::endl;
+			// vvs::io::SaveColorPlyFile(dir_path + "FoVP" + std::to_string(i) + ".ply", this->Out_res_[i + 1]);
 			// write each patch
 			for (size_t j = 0; j < this->kPatchNumber; j++) {
 				fwrite(&(this->p_frame_patches_[j][i].is_independent_), sizeof(bool), 1, fp);
@@ -385,6 +400,9 @@ void coder::Encoder::OutputPFrame(const std::string& __p_frame_name) {
 				fwrite(this->p_frame_patches_[j][i].colors_.c_str(), sizeof(char), this->p_frame_patches_[j][i].colors_.size(), fp);
 
 				fwrite(&(this->p_frame_patches_[j][i].motion_vector_), sizeof(Eigen::Matrix4f), 1, fp);
+
+				// outfile << "Patch#" << j << std::endl;
+				// outfile << this->p_frame_patches_[j][i].total_size << std::endl;
 			}
 
 			fclose(fp);

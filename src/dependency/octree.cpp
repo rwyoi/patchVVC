@@ -1,7 +1,7 @@
 /***
  * @Author: ChenRP07
  * @Date: 2022-07-11 18:12:56
- * @LastEditTime: 2022-07-13 17:50:23
+ * @LastEditTime: 2022-07-24 13:45:41
  * @LastEditors: ChenRP07
  * @Description:
  */
@@ -30,7 +30,7 @@ Octree3D::Octree3D(const float __res) : kMinResolution{__res} {}
  * @param {float} __res
  * @return {*}
  */
-void Octree3D::SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud, const std::vector<std::vector<vvs::type::ColorRGB>>& __point_colors) {
+void Octree3D::SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud, const std::vector<std::vector<vvs::type::ColorRGB>>& __point_colors, vvs::type::range& box) {
 	try {
 		// cloud must be not empty
 		if (__point_cloud.empty()) {
@@ -48,6 +48,9 @@ void Octree3D::SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cl
 			max_y = i.y > max_y ? i.y : max_y;
 			max_z = i.z > max_z ? i.z : max_z;
 		}
+
+		box.minx = min_x, box.miny = min_y, box.minz = min_z;
+		box.maxx = max_x, box.maxy = max_y, box.maxz = max_z;
 
 		float __resolution     = std::max(std::max(max_x - min_x, max_y - min_y), max_z - min_z);
 		this->tree_resolution_ = std::pow(2.0f, std::ceil(std::log2(__resolution)));
@@ -324,7 +327,7 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 				for (size_t j = i; j < Qcoff_y.size(); j++) {
 					if (Qcoff_y[j] == 0) {
 						zero_count++;
-						if (zero_count == 32700){
+						if (zero_count == 32700) {
 							break;
 						}
 					}
@@ -360,7 +363,7 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 				for (size_t j = i; j < Qcoff_u.size(); j++) {
 					if (Qcoff_u[j] == 0) {
 						zero_count++;
-						if (zero_count == 32700){
+						if (zero_count == 32700) {
 							break;
 						}
 					}
@@ -396,7 +399,7 @@ void Octree3D::RAHT(std::string& __result, size_t index, const int kQStep) {
 				for (size_t j = i; j < Qcoff_v.size(); j++) {
 					if (Qcoff_v[j] == 0) {
 						zero_count++;
-						if (zero_count == 32700){
+						if (zero_count == 32700) {
 							break;
 						}
 					}
@@ -485,7 +488,7 @@ SingleOctree3D::SingleOctree3D(const float __res) : kMinResolution{__res} {}
  * @param {float} __res
  * @return {*}
  */
-void SingleOctree3D::SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud) {
+void SingleOctree3D::SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __point_cloud, vvs::type::range& box) {
 	try {
 		// cloud must be not empty
 		if (__point_cloud.empty()) {
@@ -503,6 +506,9 @@ void SingleOctree3D::SetPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>& __po
 			max_y = i.y > max_y ? i.y : max_y;
 			max_z = i.z > max_z ? i.z : max_z;
 		}
+
+		box.minx = min_x, box.miny = min_y, box.minz = min_z;
+		box.maxx = max_x, box.maxy = max_y, box.maxz = max_z;
 
 		float __resolution     = std::max(std::max(max_x - min_x, max_y - min_y), max_z - min_z);
 		this->tree_resolution_ = std::pow(2.0f, std::ceil(std::log2(__resolution)));
